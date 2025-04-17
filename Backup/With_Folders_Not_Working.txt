@@ -1,0 +1,1130 @@
+// BUG: checks for the last image in the folder and displays it
+
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using System.Text.RegularExpressions;
+using System.Diagnostics;
+using System.IO;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.Linq;
+
+namespace Test_Software_AI_Automatic_Cleaning_Machine
+{
+    public partial class Form1 : Form
+    {
+        //----------------------------------------------------------------------
+        // Detection Configuration Panel Controls
+        //----------------------------------------------------------------------
+        
+        // Weights and YAML Files
+        Label selectWeightsFileLabel;
+        ComboBox selectWeightsFileComboBox;
+        Label selectYamlFileLabel;
+        ComboBox selectYamlFileComboBox;
+
+        // Source Selection
+        Button selectImageButton, selectFolderButton;
+        string selectedPath;
+        bool isFolder = false;
+
+        // Detection Settings
+        CheckBox enableCudaCheckBox;
+        CheckBox enableHalfPrecisionCheckBox;
+
+        //----------------------------------------------------------------------
+        // Detection Parameters Panel Controls
+        //----------------------------------------------------------------------
+        
+        // Image Resolution
+        Label imageResolutionLabel;
+        TextBox imageResolutionHorizontalTextBox, imageResolutionVerticalTextBox;
+
+        // Threshold Settings
+        Label confidenceThresholdLabel;
+        TextBox confidenceThresholdTextBox;
+        Label iouThresholdLabel;
+        TextBox iouThresholdTextBox;
+
+        //----------------------------------------------------------------------
+        // Logging Configuration Panel Controls
+        //----------------------------------------------------------------------
+        
+        // Project Naming
+        Label projectNameLabel;
+        TextBox projectNameTextBox;
+        Label experimentNameLabel;
+        TextBox experimentNameTextBox;
+
+        // Output Options
+        CheckBox hideLabelCheckBox;
+        CheckBox hideConfidenceCheckBox;
+
+        //----------------------------------------------------------------------
+        // Detection Button
+        //----------------------------------------------------------------------
+        Button startDetectionButton;
+
+        //----------------------------------------------------------------------
+        // Image Panel Controls
+        //----------------------------------------------------------------------
+        
+        // Input Image Display
+        Label inputImageLabel;
+        PictureBox inputPictureBox;
+        Image inputImage;
+
+        // Output Image Display
+        Label outputImageLabel;
+        PictureBox outputPictureBox;
+        Image outputImage;
+
+        // Results Navigation
+        Button prevImageButton, nextImageButton;
+        List<string> resultImagePaths = new List<string>();
+        int currentImageIndex = 0;
+
+        // Container
+        GroupBox imagePanelGroupBox;
+
+
+        /// <summary>
+        /// YOLOv5 Base Directory Path
+        /// </summary>
+        private readonly string yolov5BasePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "yolov5");
+
+
+        /// <inputPanel>
+        /// Input Panel: Detection Configuration
+        /// 1. Select Weights.engine file
+        /// 2. Select Data.yaml file
+        /// 3. Select Source Image
+        /// 4. Enable CUDA
+        /// 5. Enable Half Precision
+        /// 
+        /// Input Panel: Detection Parameters
+        /// 1. Image Resolution
+        /// 2. Confidence Threshold
+        /// 3. IOU Threshold
+        /// 
+        /// Input Panel: Logging Configuration
+        /// 1. Project Name
+        /// 2. Experiment Name
+        /// 3. Hide Labels
+        /// 4. Hide Confidence
+        /// </inputPanel>
+
+        public Form1()
+        {
+            InitializeComponent();
+
+            // Initialize UI components
+
+            // Create the main group box
+            GroupBox detectionConfigGroupBox = new GroupBox
+            {
+                Text = "Detection Configuration",
+                Location = new Point(20, 20),
+                Size = new Size(400, 190),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+            };
+            detectionConfigGroupBox.Font = new Font("Arial", 9, FontStyle.Bold);
+            Controls.Add(detectionConfigGroupBox);
+
+            // Common font for controls
+            Font regularFont = new Font("Arial", 9, FontStyle.Regular);
+
+            // Initialize weights file selection controls
+            InitializeWeightsSelection(detectionConfigGroupBox, regularFont);
+            
+            // Initialize YAML file selection controls
+            InitializeYamlSelection(detectionConfigGroupBox, regularFont);
+            
+            // Initialize image/folder selection controls
+            InitializeSourceSelection(detectionConfigGroupBox, regularFont);
+            
+            // Initialize hardware acceleration options
+            InitializeHardwareOptions(detectionConfigGroupBox, regularFont);
+
+            // Create the main group box
+            GroupBox detectionParametersGroupBox = new GroupBox
+            {
+                Text = "Detection Parameters",
+                Location = new Point(20, 220),
+                Size = new Size(400, 120),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+            };
+            detectionParametersGroupBox.Font = new Font("Arial", 9, FontStyle.Bold);
+            Controls.Add(detectionParametersGroupBox);
+
+            // Initialize image resolution controls
+            InitializeResolutionControls(detectionParametersGroupBox, regularFont);
+
+            // Initialize threshold controls
+            InitializeThresholdControls(detectionParametersGroupBox, regularFont);
+
+            // Create the main group box
+            GroupBox loggingConfigurationGroupBox = new GroupBox
+            {
+                Text = "Logging Configuration",
+                Location = new Point(20, 350),
+                Size = new Size(400, 120),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+            };
+            loggingConfigurationGroupBox.Font = new Font("Arial", 9, FontStyle.Bold);
+            Controls.Add(loggingConfigurationGroupBox);
+
+            // Initialize project naming controls
+            InitializeProjectNaming(loggingConfigurationGroupBox, regularFont);
+
+            // Initialize output options
+            InitializeOutputOptions(loggingConfigurationGroupBox, regularFont);
+
+            // Initialize Start Detection Button
+            InitializeStartDetectionButton();
+            
+            // Initialize Image Panel
+            // Create the main group box
+            imagePanelGroupBox = new GroupBox
+            {
+                Text = "Image Panel",
+                Location = new Point(440, 20),
+                Size = new Size(890, 590),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
+            };
+            imagePanelGroupBox.Font = new Font("Arial", 9, FontStyle.Bold);
+            Controls.Add(imagePanelGroupBox);
+
+            // Common fonts
+            Font boldFont = new Font("Arial", 9, FontStyle.Bold);
+
+            // Initialize input image display
+            InitializeInputImageDisplay(imagePanelGroupBox, boldFont);
+
+            // Initialize output image display
+            InitializeOutputImageDisplay(imagePanelGroupBox, boldFont);
+
+            // Initialize navigation controls
+            InitializeNavigationControls(imagePanelGroupBox, regularFont);
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            // Set form properties
+            this.Text = "YOLOv5 Object Detection Tool";
+            this.Size = new System.Drawing.Size(1366, 768);
+            this.Font = new Font("Arial", 9, FontStyle.Regular);
+        }
+        
+        /// <summary>
+        /// Initializes the weights file selection controls
+        /// </summary>
+        private void InitializeWeightsSelection(GroupBox parentGroup, Font regularFont)
+        {
+            // Weights File Label
+            selectWeightsFileLabel = new Label
+            {
+                Text = "Select Weights File:",
+                Location = new Point(20, 30),
+                Size = new Size(150, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(selectWeightsFileLabel);
+
+            // Weights File ComboBox
+            selectWeightsFileComboBox = new ComboBox
+            {
+                Location = new Point(180, 30),
+                Size = new Size(200, 20),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = regularFont
+            };
+            selectWeightsFileComboBox.Items.AddRange(new object[] { 
+                "petris_yolov5x.pt", 
+                "petris_yolov5x_fp16.onnx", 
+                "petris_yolov5x_fp32.onnx", 
+                "petris_yolov5x_fp16.engine", 
+                "petris_yolov5x_fp32.engine" 
+            });
+            selectWeightsFileComboBox.SelectedIndex = 4;
+            parentGroup.Controls.Add(selectWeightsFileComboBox);
+        }
+        
+        /// <summary>
+        /// Initializes the YAML file selection controls
+        /// </summary>
+        private void InitializeYamlSelection(GroupBox parentGroup, Font regularFont)
+        {
+            // Data.yaml File Label
+            selectYamlFileLabel = new Label
+            {
+                Text = "Select YAML File:",
+                Location = new Point(20, 60),
+                Size = new Size(150, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(selectYamlFileLabel);
+
+            // Data.yaml File ComboBox
+            selectYamlFileComboBox = new ComboBox
+            {
+                Location = new Point(180, 60),
+                Size = new Size(200, 20),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = regularFont
+            };
+            selectYamlFileComboBox.Items.AddRange(new object[] { "petris_data.yaml" });
+            selectYamlFileComboBox.SelectedIndex = 0;
+            parentGroup.Controls.Add(selectYamlFileComboBox);
+        }
+        
+        /// <summary>
+        /// Initializes the image and folder selection buttons
+        /// </summary>
+        private void InitializeSourceSelection(GroupBox parentGroup, Font regularFont)
+        {
+            // Select Image Button
+            selectImageButton = new Button
+            {
+                Text = "Select Image",
+                Location = new Point(20, 90),
+                Size = new Size(180, 30),
+                BackColor = Color.LightGray,
+                Font = regularFont
+            };
+            selectImageButton.Click += selectImageButton_Click;
+            parentGroup.Controls.Add(selectImageButton);
+            
+            // Select Folder Button
+            selectFolderButton = new Button
+            {
+                Text = "Select Folder",
+                Location = new Point(210, 90),
+                Size = new Size(170, 30),
+                BackColor = Color.LightGray,
+                Font = regularFont
+            };
+            selectFolderButton.Click += selectFolderButton_Click;
+            parentGroup.Controls.Add(selectFolderButton);
+        }
+        
+        /// <summary>
+        /// Initializes the hardware acceleration options
+        /// </summary>
+        private void InitializeHardwareOptions(GroupBox parentGroup, Font regularFont)
+        {
+            // Enable CUDA CheckBox
+            enableCudaCheckBox = new CheckBox
+            {
+                Text = "Enable CUDA",
+                Location = new Point(20, 130),
+                Size = new Size(150, 20),
+                Checked = true,
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(enableCudaCheckBox);
+
+            // Enable Half Precision CheckBox
+            enableHalfPrecisionCheckBox = new CheckBox
+            {
+                Text = "Enable Half Precision",
+                Location = new Point(20, 160),
+                Size = new Size(150, 20),
+                Checked = true,
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(enableHalfPrecisionCheckBox);
+        }
+
+
+        /// <summary>
+        /// Initializes the image resolution controls
+        /// </summary>
+        private void InitializeResolutionControls(GroupBox parentGroup, Font regularFont)
+        {
+            // Image Resolution Label
+            imageResolutionLabel = new Label
+            {
+                Text = "Image Resolution:",
+                Location = new Point(20, 30),
+                Size = new Size(120, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(imageResolutionLabel);
+
+            // Horizontal Resolution TextBox
+            imageResolutionHorizontalTextBox = new TextBox
+            {
+                Text = "1280",
+                Location = new Point(150, 30),
+                Size = new Size(50, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(imageResolutionHorizontalTextBox);
+
+            // Resolution Separator Label
+            Label resolutionSeparatorLabel = new Label
+            {
+                Text = "×",
+                Location = new Point(205, 33),
+                Size = new Size(15, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(resolutionSeparatorLabel);
+
+            // Vertical Resolution TextBox
+            imageResolutionVerticalTextBox = new TextBox
+            {
+                Text = "1280",
+                Location = new Point(225, 30),
+                Size = new Size(50, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(imageResolutionVerticalTextBox);
+        }
+
+        /// <summary>
+        /// Initializes the confidence and IoU threshold controls
+        /// </summary>
+        private void InitializeThresholdControls(GroupBox parentGroup, Font regularFont)
+        {
+            // Confidence Threshold Label
+            confidenceThresholdLabel = new Label
+            {
+                Text = "Confidence Threshold:",
+                Location = new Point(20, 60),
+                Size = new Size(120, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(confidenceThresholdLabel);
+
+            // Confidence Threshold TextBox
+            confidenceThresholdTextBox = new TextBox
+            {
+                Text = "0.25",
+                Location = new Point(150, 60),
+                Size = new Size(60, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(confidenceThresholdTextBox);
+
+            // IOU Threshold Label
+            iouThresholdLabel = new Label
+            {
+                Text = "IOU Threshold:",
+                Location = new Point(20, 90),
+                Size = new Size(120, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(iouThresholdLabel);
+
+            // IOU Threshold TextBox
+            iouThresholdTextBox = new TextBox
+            {
+                Text = "0.45",
+                Location = new Point(150, 90),
+                Size = new Size(60, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(iouThresholdTextBox);
+        }
+
+        /// <summary>
+        /// Initializes the project and experiment naming controls
+        /// </summary>
+        private void InitializeProjectNaming(GroupBox parentGroup, Font regularFont)
+        {
+            // Project Name Label
+            projectNameLabel = new Label
+            {
+                Text = "Project Name:",
+                Location = new Point(20, 30),
+                Size = new Size(100, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(projectNameLabel);
+
+            // Project Name TextBox
+            projectNameTextBox = new TextBox
+            {
+                Text = "PETRIS_Test_Data",
+                Location = new Point(130, 30),
+                Size = new Size(250, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(projectNameTextBox);
+
+            // Experiment Name Label
+            experimentNameLabel = new Label
+            {
+                Text = "Experiment Name:",
+                Location = new Point(20, 60),
+                Size = new Size(100, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(experimentNameLabel);
+
+            // Experiment Name TextBox
+            experimentNameTextBox = new TextBox
+            {
+                Text = "exp",
+                Location = new Point(130, 60),
+                Size = new Size(250, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(experimentNameTextBox);
+        }
+
+        /// <summary>
+        /// Initializes the output display options
+        /// </summary>
+        private void InitializeOutputOptions(GroupBox parentGroup, Font regularFont)
+        {
+            // Hide Labels CheckBox
+            hideLabelCheckBox = new CheckBox
+            {
+                Text = "Hide Labels",
+                Location = new Point(20, 90),
+                Size = new Size(100, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(hideLabelCheckBox);
+
+            // Hide Confidence CheckBox
+            hideConfidenceCheckBox = new CheckBox
+            {
+                Text = "Hide Confidence",
+                Location = new Point(130, 90),
+                Size = new Size(120, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(hideConfidenceCheckBox);
+        }
+
+        /// <summary>
+        /// Initializes the Start Detection button
+        /// </summary>
+        private void InitializeStartDetectionButton()
+        {
+            // Create and configure the Start Detection button
+            startDetectionButton = new Button
+            {
+                Text = "▶ Start Detection",
+                Location = new Point(20, 490),
+                Size = new Size(400, 40),
+                Font = new Font("Arial", 12, FontStyle.Bold),
+                BackColor = Color.LightGreen,
+            };
+            startDetectionButton.Click += startDetectionButton_Click;
+            Controls.Add(startDetectionButton);
+        }
+
+
+        /// <summary>
+        /// Initializes the input image display controls
+        /// </summary>
+        private void InitializeInputImageDisplay(GroupBox parentGroup, Font boldFont)
+        {
+            // Input Image Label
+            inputImageLabel = new Label
+            {
+                Text = "Input Image",
+                Location = new Point(20, 25),
+                Size = new Size(300, 20),
+                Font = boldFont
+            };
+            parentGroup.Controls.Add(inputImageLabel);
+
+            // Input PictureBox
+            inputPictureBox = new PictureBox
+            {
+                Location = new Point(20, 50),
+                Size = new Size(410, 500),
+                BorderStyle = BorderStyle.FixedSingle,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.WhiteSmoke
+            };
+            parentGroup.Controls.Add(inputPictureBox);
+        }
+
+        /// <summary>
+        /// Initializes the output image display controls
+        /// </summary>
+        private void InitializeOutputImageDisplay(GroupBox parentGroup, Font boldFont)
+        {
+            // Output Image Label
+            outputImageLabel = new Label
+            {
+                Text = "Output Image (Showing Input - Run Detection)",
+                Location = new Point(450, 25),
+                Size = new Size(300, 20),
+                Font = boldFont
+            };
+            parentGroup.Controls.Add(outputImageLabel);
+
+            // Output PictureBox
+            outputPictureBox = new PictureBox
+            {
+                Location = new Point(450, 50),
+                Size = new Size(410, 500),
+                BorderStyle = BorderStyle.FixedSingle,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.WhiteSmoke
+            };
+            parentGroup.Controls.Add(outputPictureBox);
+        }
+
+        /// <summary>
+        /// Initializes the navigation controls for browsing detection results
+        /// </summary>
+        private void InitializeNavigationControls(GroupBox parentGroup, Font regularFont)
+        {
+            // Navigation Panel
+            Panel navigationPanel = new Panel
+            {
+                Name = "navigationPanel",
+                Location = new Point(20, 555),
+                Size = new Size(840, 30),
+                Visible = false
+            };
+            parentGroup.Controls.Add(navigationPanel);
+
+            // Previous Image Button
+            prevImageButton = new Button
+            {
+                Text = "◀ Previous",
+                Location = new Point(0, 0),
+                Size = new Size(100, 30),
+                Font = regularFont,
+                Enabled = false
+            };
+            prevImageButton.Click += prevImageButton_Click;
+            navigationPanel.Controls.Add(prevImageButton);
+
+            // Next Image Button
+            nextImageButton = new Button
+            {
+                Text = "Next ▶",
+                Location = new Point(740, 0),
+                Size = new Size(100, 30),
+                Font = regularFont,
+                Enabled = false
+            };
+            nextImageButton.Click += nextImageButton_Click;
+            navigationPanel.Controls.Add(nextImageButton);
+        }
+
+        /// <summary>
+        /// Handles the click event for the Select Image button
+        /// </summary>
+        private void selectImageButton_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                // Configure dialog settings
+                openFileDialog.Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.tiff";
+                
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    // Update path and state variables
+                    selectedPath = openFileDialog.FileName;
+                    isFolder = false;
+                    
+                    // Update UI to reflect selection
+                    selectImageButton.Text = "Image: " + Path.GetFileName(selectedPath);
+                    selectFolderButton.Text = "Select image";
+
+                    // Load and display the selected image
+                    LoadAndDisplayInputImage(selectedPath);
+                    inputImageLabel.Text = "Input Image";
+                    
+                    // Reset navigation panel visibility and state
+                    if (imagePanelGroupBox.Controls["navigationPanel"] is Panel navPanel)
+                    {
+                        navPanel.Visible = false;
+                    }
+                    
+                    // Reset result list and current index
+                    resultImagePaths.Clear();
+                    currentImageIndex = 0;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles the click event for the Select Folder button
+        /// </summary>
+        private void selectFolderButton_Click(object sender, EventArgs e)
+        {
+            using (FolderBrowserDialog folderDialog = new FolderBrowserDialog())
+            {
+                // Configure dialog settings
+                folderDialog.ShowNewFolderButton = true;
+
+                if (folderDialog.ShowDialog() == DialogResult.OK)
+                {
+                    // Update path and state variables
+                    selectedPath = folderDialog.SelectedPath;
+                    isFolder = true;
+
+                    // Update UI to reflect selection
+                    selectFolderButton.Text = "Folder: " + Path.GetFileName(selectedPath);
+                    selectImageButton.Text = "Select Image";
+                    
+                    // Find image files in the selected folder
+                    string[] imageFiles = Directory.GetFiles(selectedPath, "*.jpg")
+                        .Concat(Directory.GetFiles(selectedPath, "*.jpeg"))
+                        .Concat(Directory.GetFiles(selectedPath, "*.png"))
+                        .Concat(Directory.GetFiles(selectedPath, "*.bmp"))
+                        .ToArray();
+                    
+                    // Load and display preview if images found
+                    if (imageFiles.Length > 0)
+                    {
+                        LoadAndDisplayInputImage(imageFiles[0]);
+                        inputImageLabel.Text = $"Preview: {Path.GetFileName(imageFiles[0])} (1 of {imageFiles.Length})";
+                    }
+                    else
+                    {
+                        MessageBox.Show("No image files found in the selected folder.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        inputImageLabel.Text = "No preview available";
+                    }
+                    
+                    // Reset navigation panel visibility and state
+                    if (imagePanelGroupBox.Controls["navigationPanel"] is Panel navPanel)
+                    {
+                        navPanel.Visible = false;
+                    }
+                    
+                    // Reset result list and current index
+                    resultImagePaths.Clear();
+                    currentImageIndex = 0;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Loads an image from the specified path and displays it in both input and output picture boxes
+        /// </summary>
+        private void LoadAndDisplayInputImage(string imagePath)
+        {
+            // Dispose existing image if any
+            if (inputImage != null)
+            {
+                inputImage.Dispose();
+            }
+            
+            try
+            {
+                // Load the new image
+                inputImage = Image.FromFile(imagePath);
+                
+                // Display input image in both picture boxes
+                inputPictureBox.Image = inputImage;
+                outputPictureBox.Image = inputImage;
+                
+                // Configure display properties
+                inputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                
+                // Refresh displays
+                inputPictureBox.Refresh();
+                outputPictureBox.Refresh();
+                
+                // Update output image label
+                outputImageLabel.Text = "Output Image (Showing Input - Run Detection)";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading image: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        
+        /// <summary>
+        /// Handles the click event for the Previous button in the results navigation
+        /// </summary>
+        private void prevImageButton_Click(object sender, EventArgs e)
+        {
+            if (resultImagePaths.Count > 0 && currentImageIndex > 0)
+            {
+                currentImageIndex--;
+                DisplayResultImage(currentImageIndex);
+                UpdateNavigationButtons();
+            }
+        }
+        
+        /// <summary>
+        /// Handles the click event for the Next button in the results navigation
+        /// </summary>
+        private void nextImageButton_Click(object sender, EventArgs e)
+        {
+            if (resultImagePaths.Count > 0 && currentImageIndex < resultImagePaths.Count - 1)
+            {
+                currentImageIndex++;
+                DisplayResultImage(currentImageIndex);
+                UpdateNavigationButtons();
+            }
+        }
+        
+        /// <summary>
+        /// Displays the detection result image at the specified index
+        /// and updates the corresponding input image
+        /// </summary>
+        private void DisplayResultImage(int index)
+        {
+            if (index >= 0 && index < resultImagePaths.Count)
+            {
+                string resultPath = resultImagePaths[index];
+                
+                try
+                {
+                    // Load and display the output image
+                    if (outputImage != null)
+                    {
+                        outputImage.Dispose();
+                    }
+                    outputImage = Image.FromFile(resultPath);
+                    outputPictureBox.Image = outputImage;
+                    outputPictureBox.Refresh();
+                    
+                    // Only for folder detection we need to find and update the input image
+                    if (isFolder)
+                    {
+                        // Get the corresponding input image path
+                        string outputFileName = Path.GetFileName(resultPath);
+                        string possibleInputPath = Path.Combine(selectedPath, outputFileName);
+                        
+                        // Update input image if available
+                        if (File.Exists(possibleInputPath))
+                        {
+                            if (inputImage != null)
+                            {
+                                inputImage.Dispose();
+                            }
+                            inputImage = Image.FromFile(possibleInputPath);
+                            inputPictureBox.Image = inputImage;
+                            inputPictureBox.Refresh();
+                            
+                            // Update input label
+                            inputImageLabel.Text = $"Input: {Path.GetFileName(possibleInputPath)}";
+                        }
+                        else
+                        {
+                            inputImageLabel.Text = "Input image not found";
+                        }
+                        
+                        // Update output label for folder navigation
+                        outputImageLabel.Text = $"Output: {outputFileName} ({currentImageIndex + 1} of {resultImagePaths.Count})";
+                    }
+                    else
+                    {
+                        // For single image detection, just update the output label
+                        outputImageLabel.Text = $"Output: {Path.GetFileName(resultPath)}";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error loading image: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Updates the state and text of the navigation buttons based on the current index
+        /// </summary>
+        private void UpdateNavigationButtons()
+        {
+            // Enable/disable buttons based on current position
+            prevImageButton.Enabled = (currentImageIndex > 0);
+            nextImageButton.Enabled = (currentImageIndex < resultImagePaths.Count - 1);
+            
+            // Update button text to show position information
+            if (resultImagePaths.Count > 0)
+            {
+                prevImageButton.Text = currentImageIndex > 0 ? $"◀ Previous ({currentImageIndex})" : "◀ Previous";
+                nextImageButton.Text = currentImageIndex < resultImagePaths.Count - 1 ? $"Next ({currentImageIndex + 2}) ▶" : "Next ▶";
+            }
+        }
+
+        /// <summary>
+        /// Handles the click event for the Start Detection button
+        /// </summary>
+        private async void startDetectionButton_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Validate input selection
+                if (string.IsNullOrEmpty(selectedPath))
+                {
+                    MessageBox.Show("Please select an image or folder first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                
+                // Check if YOLOv5 directory exists
+                if (!Directory.Exists(yolov5BasePath))
+                {
+                    MessageBox.Show($"YOLOv5 directory not found at: {yolov5BasePath}\nPlease ensure YOLOv5 is installed in the correct location.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Update UI to show processing state
+                startDetectionButton.Enabled = false;
+                startDetectionButton.Text = "Processing...";
+                startDetectionButton.BackColor = Color.Gray;
+                
+                // Generate detection command
+                string detectionCommand = getDetectionCommand();
+
+                // Update output label to indicate processing
+                outputImageLabel.Text = isFolder ? 
+                    "Output Image (Processing Folder Detection...)" : 
+                    "Output Image (Processing Detection...)";
+                
+                // Force UI update immediately
+                outputImageLabel.Update();
+                Application.DoEvents();
+
+                // Run the detection process asynchronously
+                await Task.Run(() => RunDetection(detectionCommand));
+                
+                // Reset button state after detection
+                startDetectionButton.Enabled = true;
+                startDetectionButton.Text = "▶ Start Detection";
+                startDetectionButton.BackColor = Color.LightGreen;
+            }
+            catch (Exception ex)
+            {
+                // Handle any errors
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                
+                // Reset button state on error
+                startDetectionButton.Enabled = true;
+                startDetectionButton.Text = "▶ Start Detection";
+                startDetectionButton.BackColor = Color.LightGreen;
+                
+                // Reset output label
+                outputImageLabel.Text = "Output Image (Showing Input - Run Detection)";
+            }
+        }
+
+        /// <summary>
+        /// Runs the YOLOv5 detection process with the specified command
+        /// </summary>
+        private void RunDetection(string detectionCommand)
+        {
+            // Create the complete command with conda environment activation
+            string condaActivateCmd = $"call activate yolov5";
+            string completeCommand = $"{condaActivateCmd} && {detectionCommand}";
+            
+            // Configure process start info
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c {completeCommand}",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                WorkingDirectory = Application.StartupPath // Set working directory to application path
+            };
+            
+            // Run the detection process
+            using (Process process = new Process { StartInfo = startInfo })
+            {
+                process.Start();
+                string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+
+                // Check for errors
+                if (process.ExitCode != 0)
+                {
+                    throw new Exception($"Error running detection:\n{error}\nOutput:\n{output}");
+                }
+
+                // Update UI on the main thread
+                this.Invoke((System.Windows.Forms.MethodInvoker)delegate
+                {
+                    try 
+                    {
+                        // Get the output directory path
+                        string outputDir = Path.Combine(
+                            Application.StartupPath,
+                            projectNameTextBox.Text,
+                            experimentNameTextBox.Text
+                        );
+                        
+                        if (isFolder)
+                        {
+                            // For folder detections
+                            HandleFolderDetectionResults(outputDir);
+                        }
+                        else
+                        {
+                            // For single image detections
+                            HandleSingleImageDetectionResult(outputDir);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error processing results: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Handles the results of a single image detection
+        /// </summary>
+        private void HandleSingleImageDetectionResult(string outputDir)
+        {
+            if (Directory.Exists(outputDir))
+            {
+                // For single image, we expect just one result
+                string[] resultFiles = Directory.GetFiles(outputDir, "*.jpg")
+                    .Concat(Directory.GetFiles(outputDir, "*.jpeg"))
+                    .Concat(Directory.GetFiles(outputDir, "*.png"))
+                    .ToArray();
+
+                if (resultFiles.Length > 0)
+                {
+                    // Always use just the first result for single image
+                    try
+                    {
+                        // Load and display the output image
+                        if (outputImage != null)
+                        {
+                            outputImage.Dispose();
+                        }
+                        outputImage = Image.FromFile(resultFiles[0]);
+                        outputPictureBox.Image = outputImage;
+                        outputPictureBox.Refresh();
+                        
+                        // Update output label
+                        outputImageLabel.Text = $"Output: {Path.GetFileName(resultFiles[0])}";
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error loading result image: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show($"No output image found in: {outputDir}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    outputImageLabel.Text = "Output Image (Showing Input - Run Detection)";
+                }
+                
+                // Always ensure navigation panel is hidden for single image
+                Panel navPanel = (Panel)imagePanelGroupBox.Controls["navigationPanel"];
+                navPanel.Visible = false;
+            }
+        }
+
+        /// <summary>
+        /// Handles the results of a folder detection
+        /// </summary>
+        private void HandleFolderDetectionResults(string outputDir)
+        {
+            // Clear previous results
+            resultImagePaths.Clear();
+            
+            if (Directory.Exists(outputDir))
+            {
+                // Collect all result images
+                string[] jpgFiles = Directory.GetFiles(outputDir, "*.jpg");
+                string[] jpegFiles = Directory.GetFiles(outputDir, "*.jpeg");
+                string[] pngFiles = Directory.GetFiles(outputDir, "*.png");
+                
+                resultImagePaths.AddRange(jpgFiles);
+                resultImagePaths.AddRange(jpegFiles);
+                resultImagePaths.AddRange(pngFiles);
+                
+                Console.WriteLine($"Found {resultImagePaths.Count} result images");
+                
+                if (resultImagePaths.Count > 0)
+                {
+                    // Display the first result
+                    currentImageIndex = 0;
+                    DisplayResultImage(currentImageIndex);
+                    
+                    // Make navigation panel visible if there are multiple results
+                    Panel navPanel = (Panel)imagePanelGroupBox.Controls["navigationPanel"];
+                    navPanel.Visible = resultImagePaths.Count > 1;
+                    navPanel.BringToFront();
+                    
+                    // Update navigation buttons state
+                    UpdateNavigationButtons();
+                }
+                else
+                {
+                    MessageBox.Show($"No output images found in: {outputDir}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    outputImageLabel.Text = "Output Image (Showing Input - Run Detection)";
+                }
+            }
+        }
+
+        /// <summary>
+        /// Generates the YOLOv5 detection command based on the current settings
+        /// </summary>
+        string getDetectionCommand()
+        {
+            // Build the command parameters using a List for better organization
+            List<string> command = new List<string>
+            {
+                "python",
+                $"\"{Path.Combine(yolov5BasePath, "detect.py").Replace("\\", "\\\\")}\"",
+                $"--weights \"{Path.Combine(Application.StartupPath, "Models", selectWeightsFileComboBox.SelectedItem.ToString()).Replace("\\", "\\\\")}\"",
+                $"--data \"{Path.Combine(Application.StartupPath, "Models", selectYamlFileComboBox.SelectedItem.ToString()).Replace("\\", "\\\\")}\"",
+                $"--project \"{Path.Combine(Application.StartupPath, projectNameTextBox.Text).Replace("\\", "\\\\")}\"",
+                $"--name {experimentNameTextBox.Text}",
+                $"--imgsz {imageResolutionHorizontalTextBox.Text} {imageResolutionVerticalTextBox.Text}",
+                $"--conf-thres {confidenceThresholdTextBox.Text}",
+                $"--iou-thres {iouThresholdTextBox.Text}"
+            };
+
+            // Add source path with proper formatting for folder paths
+            if (isFolder)
+            {
+                string folderPath = selectedPath;
+                // Ensure folder path ends with a separator
+                if (!folderPath.EndsWith(Path.DirectorySeparatorChar.ToString()) && 
+                    !folderPath.EndsWith(Path.AltDirectorySeparatorChar.ToString()))
+                {
+                    folderPath += Path.DirectorySeparatorChar;
+                }
+                command.Add($"--source \"{folderPath.Replace("\\", "\\\\")}\"");
+            }
+            else
+            {
+                command.Add($"--source \"{selectedPath.Replace("\\", "\\\\")}\"");
+            }
+
+            // Add hardware acceleration options if enabled
+            if (enableCudaCheckBox.Checked)
+                command.Add("--device 0");
+            else
+                command.Add("--device cpu");
+
+            if (enableHalfPrecisionCheckBox.Checked)
+                command.Add("--half");
+
+            // Add display options if enabled
+            if (hideLabelCheckBox.Checked)
+                command.Add("--hide-labels");
+
+            if (hideConfidenceCheckBox.Checked)
+                command.Add("--hide-conf");
+
+            // Add mandatory arguments
+            command.Add("--save-txt");
+            command.Add("--save-csv");
+            command.Add("--save-crop");
+            command.Add("--exist-ok");
+
+            // Join all arguments into a single command string
+            return string.Join(" ", command);
+        }
+    }
+}
