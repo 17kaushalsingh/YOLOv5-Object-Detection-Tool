@@ -13,8 +13,9 @@
     + Add previous and next button for image navigation in folders
 
 2. Add custom code for YOLOv5 inference
-    + Create separate code for folders and single images
+    + Write code to handle command line arguments
     + Load the model on app launch, keep it loaded until app exit
+    + Create separate code for folders and single images
     + Run inferences image by image, while keeping the model loaded
     + Run inferences on entire folder in one go, while keeping the model loaded
     + Add functionality to save cordinates and other detection information in multiple formats
