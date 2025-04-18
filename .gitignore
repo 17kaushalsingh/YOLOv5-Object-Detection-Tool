@@ -137,7 +137,10 @@ node_modules/
 *.engine
 
 # YOLOv5 repo
-*yolov5*
+*yolov5/*
 
 # Zip files
 *.zip
+
+# Temporary file to log git status
+status.txt
