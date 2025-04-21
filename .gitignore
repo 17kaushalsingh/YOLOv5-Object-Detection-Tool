@@ -141,8 +141,3 @@ node_modules/
 
 # Zip files
 *.zip
-
-# Temporary file to log git status
-status.txt
-Detections/
-Test_Images/
