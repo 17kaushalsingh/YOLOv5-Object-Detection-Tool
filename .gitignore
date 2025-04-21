@@ -144,3 +144,5 @@ node_modules/
 
 # Temporary file to log git status
 status.txt
+Detections/
+Test_Images/

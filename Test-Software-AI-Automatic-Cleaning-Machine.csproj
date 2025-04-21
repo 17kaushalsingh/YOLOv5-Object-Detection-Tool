@@ -13,11 +13,13 @@
 
   <ItemGroup>
     <None Remove="Models.zip" />
+    <None Remove="yolov5.yml" />
     <None Remove="yolov5.zip" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Models.zip" />
+    <EmbeddedResource Include="yolov5.yml" />
     <EmbeddedResource Include="yolov5.zip" />
   </ItemGroup>
 
