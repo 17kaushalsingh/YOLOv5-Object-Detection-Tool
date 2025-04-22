@@ -1,0 +1,26 @@
+TensorRT YOLOv5 Inference Logs
+============================================================
+Model Used: YOLOv5 TensorRT
+Confidence Threshold: 0.25
+NMS Threshold: 0.45
+============================================================
+Processed 10 images
+Images with invalid outputs: 0
+Total time (Preprocessing + Inference + Postprocessing): 1.388s
+Inference time: 0.852s
+Average FPS: 7.206
+Average inference time per image: 85.21ms
+============================================================
+Total objects detected: 16
+
+Detections by class:
+    Water: 0
+    Water_NoLabel: 0
+    CrystalGeyser: 0
+    Ayataka: 3
+    Iuemon: 4
+    JasmineTea: 1
+    CocaCola: 5
+    Dekavita: 0
+    OronaminC_Cap: 2
+    OronaminC_NoCap: 1
