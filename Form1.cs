@@ -9,224 +9,39 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using System.IO.Compression;
+using System.Threading;
 
 namespace Test_Software_AI_Automatic_Cleaning_Machine
 {
-    // Added new service class for handling YOLOv5 detection operations
-    public class YoloDetectionService
-    {
-        private readonly string _yolov5BasePath;
-        private readonly string _modelsPath;
-
-        public YoloDetectionService(string basePath)
-        {
-            _yolov5BasePath = Path.Combine(basePath, "yolov5");
-            _modelsPath = Path.Combine(basePath, "Models");
-        }
-
-        public string GetYolov5Path() => _yolov5BasePath;
-        public string GetModelsPath() => _modelsPath;
-
-        // Returns true if YOLOv5 and models are available
-        public bool VerifyDependencies(out string errorMessage)
-        {
-            errorMessage = string.Empty;
-
-            // Verify YOLOv5 installation
-            if (!Directory.Exists(_yolov5BasePath) || !File.Exists(Path.Combine(_yolov5BasePath, "detect.py")))
-            {
-                errorMessage = "YOLOv5 detect.py file not found. Please ensure YOLOv5 is properly installed.";
-                return false;
-            }
-
-            // Verify model files
-            bool modelsExist = Directory.GetFiles(_modelsPath, "*.pt").Length > 0 ||
-                              Directory.GetFiles(_modelsPath, "*.onnx").Length > 0 ||
-                              Directory.GetFiles(_modelsPath, "*.engine").Length > 0;
-            if (!modelsExist)
-            {
-                errorMessage = "No model files found in the Models directory. Please add model files.";
-                return false;
-            }
-
-            // Verify YAML files
-            bool yamlExists = Directory.GetFiles(_modelsPath, "*.yaml").Length > 0;
-            if (!yamlExists)
-            {
-                errorMessage = "No YAML data files found in the Models directory. Please add YAML files.";
-                return false;
-            }
-
-            return true;
-        }
-
-        // Extract embedded resources
-        public bool ExtractEmbeddedZipResource(string resourceNameSuffix, string targetDirectory, string resourceDescription, out string errorMessage)
-        {
-            errorMessage = string.Empty;
-            try
-            {
-                // Get the assembly for embedded resources
-                var assembly = Assembly.GetExecutingAssembly();
-
-                // Look for the zip resource
-                string resourceName = assembly.GetManifestResourceNames()
-                    .FirstOrDefault(rn => rn.EndsWith(resourceNameSuffix, StringComparison.OrdinalIgnoreCase));
-
-                if (string.IsNullOrEmpty(resourceName))
-                {
-                    errorMessage = $"{resourceDescription} resource not found. Please add it manually.";
-                    return false;
-                }
-
-                // Create temporary file for the zip
-                string tempZipPath = Path.Combine(Path.GetTempPath(), resourceNameSuffix);
-
-                // Extract zip to temp location
-                using (var stream = assembly.GetManifestResourceStream(resourceName))
-                using (var fileStream = new FileStream(tempZipPath, FileMode.Create))
-                {
-                    stream.CopyTo(fileStream);
-                }
-
-                // Extract the zip contents to the target directory
-                ZipFile.ExtractToDirectory(tempZipPath, targetDirectory);
-
-                // Clean up temporary file
-                File.Delete(tempZipPath);
-
-                Console.WriteLine($"Successfully extracted {resourceDescription} from embedded resources");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = $"Error extracting {resourceDescription}: {ex.Message}";
-                return false;
-            }
-        }
-
-        // Build YOLOv5 detection command
-        public string BuildDetectionCommand(
-            string pythonPath, 
-            string sourceImagePath, 
-            string weightsFile, 
-            string yamlFile, 
-            string projectName, 
-            string experimentName,
-            string horizontalResolution,
-            string verticalResolution,
-            string confidenceThreshold,
-            string iouThreshold,
-            bool enableCuda,
-            bool enableHalfPrecision,
-            bool hideLabels,
-            bool hideConfidence,
-            string appBasePath)
-        {
-            // Build the command parameters using a List for better organization
-            List<string> command = new List<string>
-            {
-                pythonPath,
-                $"\"{Path.Combine(_yolov5BasePath, "detect.py").Replace("\\", "\\\\")}\"",
-                $"--weights \"{Path.Combine(appBasePath, "Models", weightsFile).Replace("\\", "\\\\")}\"",
-                $"--data \"{Path.Combine(appBasePath, "Models", yamlFile).Replace("\\", "\\\\")}\"",
-                $"--project \"{Path.Combine(appBasePath, projectName).Replace("\\", "\\\\")}\"",
-                $"--name {experimentName}",
-                $"--imgsz {horizontalResolution} {verticalResolution}",
-                $"--conf-thres {confidenceThreshold}",
-                $"--iou-thres {iouThreshold}",
-                $"--source \"{sourceImagePath.Replace("\\", "\\\\")}\"",
-            };
-
-            // Add hardware acceleration options if enabled
-            if (enableCuda)
-                command.Add("--device 0");
-            else
-                command.Add("--device cpu");
-
-            if (enableHalfPrecision)
-                command.Add("--half");
-
-            // Add display options if enabled
-            if (hideLabels)
-                command.Add("--hide-labels");
-
-            if (hideConfidence)
-                command.Add("--hide-conf");
-
-            // Add mandatory arguments
-            command.Add("--save-txt");
-            command.Add("--save-csv");
-            command.Add("--save-crop");
-            command.Add("--exist-ok");
-
-            // Join all arguments into a single command string
-            return string.Join(" ", command);
-        }
-
-        // Execute YOLOv5 command and return output/error
-        public async Task<(bool Success, string Output, string Error)> ExecuteDetectionCommandAsync(string command, string condaEnvName, string workingDirectory)
-        {
-            // Create the complete command with conda environment activation
-            string condaActivateCmd = $"call activate {condaEnvName}";
-            string completeCommand = $"{condaActivateCmd} && {command}";
-
-            // Configure process start info
-            ProcessStartInfo startInfo = new ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = $"/c {completeCommand}",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                WorkingDirectory = workingDirectory
-            };
-
-            // Run the detection process
-            using (Process process = new Process { StartInfo = startInfo })
-            {
-                process.Start();
-                
-                // Read output and error streams asynchronously 
-                var outputTask = process.StandardOutput.ReadToEndAsync();
-                var errorTask = process.StandardError.ReadToEndAsync();
-                
-                // Wait for the process to exit
-                await Task.Run(() => process.WaitForExit());
-                
-                // Get the output strings
-                string output = await outputTask;
-                string error = await errorTask;
-
-                // Return the results as a tuple
-                return (process.ExitCode == 0, output, error);
-            }
-        }
-    }
-
     public partial class Form1 : Form
     {
         //----------------------------------------------------------------------
         // Detection Configuration Panel Controls
-        // 1. Detection Configuration Items: Weights and YAML Files, Source Image Selection, Hardware Acceleration Settings (CUDA and Half Precision)
+        // 1. Detection Configuration Items: Weights and Labels Files, Source Image Selection, Hardware Acceleration Settings
         // 2. Detection Parameters Items: Image Resolution and Threshold Settings (Confidence and IOU)
         // 3. Logging Configuration Items: Project Naming, Output Visualization Options (Hide Labels and Confidence)
         // 4. Image Panel Controls: Input and Output Image Display
         // 5. Common Font for Controls
-        // 6. YOLOv5 Base Directory Path and Models Directory Path
         //----------------------------------------------------------------------
-        Label selectWeightsFileLabel, selectYamlFileLabel, imageResolutionLabel, confidenceThresholdLabel, iouThresholdLabel, projectNameLabel, experimentNameLabel, inputImageLabel, outputImageLabel;
-        ComboBox selectWeightsFileComboBox, selectYamlFileComboBox;
-        Button selectImageButton, startDetectionButton;
+        Label selectWeightsFileLabel, selectLabelsFileLabel, imageResolutionLabel, confidenceThresholdLabel, iouThresholdLabel, projectNameLabel, inputImageLabel, outputImageLabel;
+        ComboBox selectWeightsFileComboBox, selectLabelsFileComboBox;
+        Button selectImageButton, selectFolderButton, startServerButton, quitServerButton, startDetectionButton, previousButton, nextButton;
         string selectedPath;
-        CheckBox enableCudaCheckBox, enableHalfPrecisionCheckBox, hideLabelCheckBox, hideConfidenceCheckBox;
-        TextBox imageResolutionHorizontalTextBox, imageResolutionVerticalTextBox, confidenceThresholdTextBox, iouThresholdTextBox, projectNameTextBox, experimentNameTextBox;
+        bool isFolder = false;
+        CheckBox enableGpuCheckBox, hideLabelCheckBox, hideConfidenceCheckBox;
+        TextBox imageResolutionHorizontalTextBox, imageResolutionVerticalTextBox, confidenceThresholdTextBox, iouThresholdTextBox, projectNameTextBox;
         PictureBox inputPictureBox, outputPictureBox;
         Image inputImage, outputImage;
-        GroupBox imagePanelGroupBox;
+        GroupBox detectionConfigGroupBox, detectionParametersGroupBox, loggingConfigGroupBox, imagePanelGroupBox;
         Font regularFont = new Font("Arial", 9, FontStyle.Regular), boldFont = new Font("Arial", 9, FontStyle.Bold);
         private readonly YoloDetectionService _detectionService;
+        private List<string> _imageFiles = new List<string>();
+        private int _currentImageIndex = 0;
+        
+        // Flag to track if detection has been completed
+        private bool _detectionCompleted = false;
+        // Store the output directory for detected images
+        private string _outputDirectory = string.Empty;
 
         public Form1()
         {
@@ -240,7 +55,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             //----------------------------------------------------------------------
             if (!SetupRequiredDependencies())
             {
-                MessageBox.Show("Failed to set up required dependencies. The application will now close.",
+                MessageBox.Show("Failed to verify required dependencies. The application will now close.",
                     "Initialization Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 Environment.Exit(1);
                 return;
@@ -253,25 +68,44 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             
             // Register event handler for form load
             this.Load += Form1_Load;
+            this.FormClosing += Form1_FormClosing;
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            // Clean up resources when the form is closing
+            if (_detectionService.IsServerRunning)
+            {
+                string errorMessage;
+                if (!_detectionService.StopServer(out errorMessage))
+                {
+                    MessageBox.Show($"Error stopping server: {errorMessage}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            
+            _detectionService.Cleanup();
         }
 
         private void InitializeUIComponents()
         {
             // Create detection configuration group
-            GroupBox detectionConfigGroupBox = CreateGroupBox("Detection Configuration", new Point(20, 20), new Size(400, 190));
+            detectionConfigGroupBox = CreateGroupBox("Detection Configuration", new Point(20, 20), new Size(400, 190));
             InitializeDetectionConfigControls(detectionConfigGroupBox, regularFont);
 
             // Create detection parameters group
-            GroupBox detectionParametersGroupBox = CreateGroupBox("Detection Parameters", new Point(20, 220), new Size(400, 120));
+            detectionParametersGroupBox = CreateGroupBox("Detection Parameters", new Point(20, 220), new Size(400, 120));
             InitializeDetectionParametersControls(detectionParametersGroupBox, regularFont);
 
             // Create logging configuration group 
-            GroupBox loggingConfigurationGroupBox = CreateGroupBox("Logging Configuration", new Point(20, 350), new Size(400, 120));
-            InitializeLoggingConfigurationControls(loggingConfigurationGroupBox, regularFont);
+            loggingConfigGroupBox = CreateGroupBox("Logging Configuration", new Point(20, 350), new Size(400, 120));
+            InitializeLoggingConfigurationControls(loggingConfigGroupBox, regularFont);
+
+            // Create server control buttons
+            CreateServerControlButtons();
 
             // Create image panel group
             imagePanelGroupBox = CreateGroupBox("Image Panel", new Point(440, 20), new Size(890, 590));
-            InitializeImagePanelControlsAndStartDetectionButton(imagePanelGroupBox, boldFont);
+            InitializeImagePanelControls(imagePanelGroupBox, boldFont);
         }
 
         private GroupBox CreateGroupBox(string text, Point location, Size size)
@@ -300,19 +134,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         {
             try
             {
-                // 1. Check for YOLOv5 directory
-                if (!Directory.Exists(_detectionService.GetYolov5Path()))
-                {
-                    ExtractResource("yolov5.zip", AppDomain.CurrentDomain.BaseDirectory, "YOLOv5 repository");
-                }
-
-                // 2. Check for Models directory
-                if (!Directory.Exists(_detectionService.GetModelsPath()))
-                {
-                    ExtractResource("models.zip", AppDomain.CurrentDomain.BaseDirectory, "Model files");
-                }
-
-                // 3. Verify all dependencies are available
+                // Verify all dependencies are available
                 string errorMessage;
                 if (!_detectionService.VerifyDependencies(out errorMessage))
                 {
@@ -328,17 +150,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     "Setup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
-        }
-
-        private bool ExtractResource(string resourceName, string targetDir, string description)
-        {
-            string errorMessage;
-            if (!_detectionService.ExtractEmbeddedZipResource(resourceName, targetDir, description, out errorMessage))
-            {
-                MessageBox.Show(errorMessage, "Resource Extraction Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
-            }
-            return true;
         }
 
         private void InitializeDetectionConfigControls(GroupBox parentGroup, Font regularFont)
@@ -363,69 +174,70 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             };
             selectWeightsFileComboBox.Items.AddRange(new object[] {
                 "petris_yolov5x.pt",
-                "petris_yolov5x_fp16.onnx",
-                "petris_yolov5x_fp32.onnx",
                 "petris_yolov5x_fp16.engine",
                 "petris_yolov5x_fp32.engine"
             });
-            selectWeightsFileComboBox.SelectedIndex = 4;
+            selectWeightsFileComboBox.SelectedIndex = 2;
             parentGroup.Controls.Add(selectWeightsFileComboBox);
 
-            // Data.yaml File Label
-            selectYamlFileLabel = new Label
+            // Labels File Label
+            selectLabelsFileLabel = new Label
             {
-                Text = "Select YAML File:",
+                Text = "Select Labels File:",
                 Location = new Point(20, 60),
                 Size = new Size(150, 20),
                 Font = regularFont
             };
-            parentGroup.Controls.Add(selectYamlFileLabel);
+            parentGroup.Controls.Add(selectLabelsFileLabel);
 
-            // Data.yaml File ComboBox
-            selectYamlFileComboBox = new ComboBox
+            // Labels File ComboBox
+            selectLabelsFileComboBox = new ComboBox
             {
                 Location = new Point(180, 60),
                 Size = new Size(200, 20),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = regularFont
             };
-            selectYamlFileComboBox.Items.AddRange(new object[] { "petris_data.yaml" });
-            selectYamlFileComboBox.SelectedIndex = 0;
-            parentGroup.Controls.Add(selectYamlFileComboBox);
+            selectLabelsFileComboBox.Items.AddRange(new object[] {
+                "petris_data.yaml"
+            });
+            selectLabelsFileComboBox.SelectedIndex = 0;
+            parentGroup.Controls.Add(selectLabelsFileComboBox);
 
             // Select Image Button
             selectImageButton = new Button
             {
                 Text = "Select Image",
                 Location = new Point(20, 90),
-                Size = new Size(360, 30),
+                Size = new Size(175, 30),
                 BackColor = Color.LightGray,
                 Font = regularFont
             };
             selectImageButton.Click += selectImageButton_Click;
             parentGroup.Controls.Add(selectImageButton);
-
-            // Enable CUDA CheckBox
-            enableCudaCheckBox = new CheckBox
+            
+            // Select Folder Button
+            selectFolderButton = new Button
             {
-                Text = "Enable CUDA",
+                Text = "Select Folder",
+                Location = new Point(205, 90),
+                Size = new Size(175, 30),
+                BackColor = Color.LightGray,
+                Font = regularFont
+            };
+            selectFolderButton.Click += selectFolderButton_Click;
+            parentGroup.Controls.Add(selectFolderButton);
+
+            // Enable GPU CheckBox
+            enableGpuCheckBox = new CheckBox
+            {
+                Text = "Enable GPU",
                 Location = new Point(20, 130),
                 Size = new Size(150, 20),
                 Checked = true,
                 Font = regularFont
             };
-            parentGroup.Controls.Add(enableCudaCheckBox);
-
-            // Enable Half Precision CheckBox
-            enableHalfPrecisionCheckBox = new CheckBox
-            {
-                Text = "Enable Half Precision",
-                Location = new Point(20, 160),
-                Size = new Size(150, 20),
-                Checked = true,
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(enableHalfPrecisionCheckBox);
+            parentGroup.Controls.Add(enableGpuCheckBox);
         }
 
         private void InitializeDetectionParametersControls(GroupBox parentGroup, Font regularFont)
@@ -533,31 +345,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             };
             parentGroup.Controls.Add(projectNameTextBox);
 
-            // Experiment Name Label
-            experimentNameLabel = new Label
-            {
-                Text = "Experiment Name:",
-                Location = new Point(20, 60),
-                Size = new Size(100, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(experimentNameLabel);
-
-            // Experiment Name TextBox
-            experimentNameTextBox = new TextBox
-            {
-                Text = "exp",
-                Location = new Point(130, 60),
-                Size = new Size(250, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(experimentNameTextBox);
-
             // Hide Labels CheckBox
             hideLabelCheckBox = new CheckBox
             {
                 Text = "Hide Labels",
-                Location = new Point(20, 90),
+                Location = new Point(20, 60),
                 Size = new Size(100, 20),
                 Font = regularFont
             };
@@ -567,14 +359,64 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             hideConfidenceCheckBox = new CheckBox
             {
                 Text = "Hide Confidence",
-                Location = new Point(130, 90),
+                Location = new Point(130, 60),
                 Size = new Size(120, 20),
                 Font = regularFont
             };
             parentGroup.Controls.Add(hideConfidenceCheckBox);
         }
+        
+        private void CreateServerControlButtons()
+        {
+            // Start Server Button
+            startServerButton = new Button
+            {
+                Text = "Start Server",
+                Location = new Point(20, 480),
+                Size = new Size(190, 40),
+                Font = new Font("Arial", 14, FontStyle.Bold),
+                BackColor = Color.LightGreen,
+                FlatStyle = FlatStyle.Flat,
+            };
+            startServerButton.FlatAppearance.BorderSize = 1;
+            startServerButton.FlatAppearance.BorderColor = Color.Black;
+            startServerButton.Click += startServerButton_Click;
+            Controls.Add(startServerButton);
+            
+            // Stop Server Button
+            quitServerButton = new Button
+            {
+                Text = "Stop Server",
+                Location = new Point(230, 480),
+                Size = new Size(190, 40),
+                Font = new Font("Arial", 14, FontStyle.Bold),
+                BackColor = Color.LightCoral,
+                FlatStyle = FlatStyle.Flat,
+                Enabled = false
+            };
+            quitServerButton.FlatAppearance.BorderSize = 1;
+            quitServerButton.FlatAppearance.BorderColor = Color.Black;
+            quitServerButton.Click += quitServerButton_Click;
+            Controls.Add(quitServerButton);
+            
+            // Start Detection Button
+            startDetectionButton = new Button
+            {
+                Text = "► Start Detection",
+                Location = new Point(20, 530),
+                Size = new Size(400, 40),
+                Font = new Font("Arial", 18, FontStyle.Bold),
+                BackColor = Color.LightBlue,
+                FlatStyle = FlatStyle.Flat,
+                Enabled = false
+            };
+            startDetectionButton.FlatAppearance.BorderSize = 1;
+            startDetectionButton.FlatAppearance.BorderColor = Color.Black;
+            startDetectionButton.Click += startDetectionButton_Click;
+            Controls.Add(startDetectionButton);
+        }
 
-        private void InitializeImagePanelControlsAndStartDetectionButton(GroupBox parentGroup, Font boldFont)
+        private void InitializeImagePanelControls(GroupBox parentGroup, Font boldFont)
         {
             // Input Image Label
             inputImageLabel = new Label
@@ -602,7 +444,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             {
                 Text = "Output Image (Showing Input - Run Detection)",
                 Location = new Point(450, 25),
-                Size = new Size(300, 20),
+                Size = new Size(400, 20),
                 Font = boldFont
             };
             parentGroup.Controls.Add(outputImageLabel);
@@ -617,21 +459,30 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 BackColor = Color.WhiteSmoke
             };
             parentGroup.Controls.Add(outputPictureBox);
-
-            // Create and configure the Start Detection button
-            startDetectionButton = new Button
+            
+            // Previous Button
+            previousButton = new Button
             {
-                Text = "▶ Start Detection",
-                Location = new Point(20, 490),
-                Size = new Size(400, 40),
-                Font = new Font("Arial", 18, FontStyle.Bold),
-                BackColor = Color.LightGreen,
-                FlatStyle = FlatStyle.Flat,
+                Text = "◄ Previous",
+                Location = new Point(20, 560),
+                Size = new Size(200, 30),
+                Font = regularFont,
+                Enabled = false
             };
-            startDetectionButton.FlatAppearance.BorderSize = 1;
-            startDetectionButton.FlatAppearance.BorderColor = Color.Black;
-            startDetectionButton.Click += startDetectionButton_Click;
-            Controls.Add(startDetectionButton);
+            previousButton.Click += previousButton_Click;
+            parentGroup.Controls.Add(previousButton);
+            
+            // Next Button
+            nextButton = new Button
+            {
+                Text = "Next ►",
+                Location = new Point(230, 560),
+                Size = new Size(200, 30),
+                Font = regularFont,
+                Enabled = false
+            };
+            nextButton.Click += nextButton_Click;
+            parentGroup.Controls.Add(nextButton);
         }
 
         private void selectImageButton_Click(object sender, EventArgs e)
@@ -639,16 +490,125 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
             {
                 // Configure dialog settings
-                openFileDialog.Filter = "Image Files|*.jpg;*.jpeg;*.png";
+                openFileDialog.Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp";
 
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     // Update path variable
                     selectedPath = openFileDialog.FileName;
+                    isFolder = false;
+                    
+                    // Reset navigation
+                    _imageFiles.Clear();
+                    _imageFiles.Add(selectedPath);
+                    _currentImageIndex = 0;
+                    
+                    // Update navigation buttons
+                    UpdateNavigationButtons();
 
                     // Load and display the selected image
                     LoadAndDisplayInputImage(selectedPath);
+                    
+                    // Update the input image label
+                    inputImageLabel.Text = $"Input Image: {Path.GetFileName(selectedPath)}";
                 }
+            }
+        }
+        
+        private void selectFolderButton_Click(object sender, EventArgs e)
+        {
+            using (FolderBrowserDialog folderDialog = new FolderBrowserDialog())
+            {
+                if (folderDialog.ShowDialog() == DialogResult.OK)
+                {
+                    // Update path variable
+                    selectedPath = folderDialog.SelectedPath;
+                    isFolder = true;
+                    
+                    // Load all image files from the folder
+                    LoadImagesFromFolder(selectedPath);
+                    
+                    // Update input image label
+                    inputImageLabel.Text = $"Input Folder: {Path.GetFileName(selectedPath)}";
+                    
+                    // Display the first image if any
+                    if (_imageFiles.Count > 0)
+                    {
+                        _currentImageIndex = 0;
+                        LoadAndDisplayInputImage(_imageFiles[_currentImageIndex]);
+                    }
+                    else
+                    {
+                        MessageBox.Show("No image files found in the selected folder.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                    
+                    // Update navigation buttons
+                    UpdateNavigationButtons();
+                }
+            }
+        }
+        
+        private void LoadImagesFromFolder(string folderPath)
+        {
+            _imageFiles.Clear();
+            
+            string[] imageExtensions = { ".jpg", ".jpeg", ".png", ".bmp" };
+            
+            try
+            {
+                foreach (string ext in imageExtensions)
+                {
+                    string[] files = Directory.GetFiles(folderPath, $"*{ext}");
+                    _imageFiles.AddRange(files);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading images from folder: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        
+        private void UpdateNavigationButtons()
+        {
+            previousButton.Enabled = _imageFiles.Count > 1 && _currentImageIndex > 0;
+            nextButton.Enabled = _imageFiles.Count > 1 && _currentImageIndex < _imageFiles.Count - 1;
+        }
+        
+        private void previousButton_Click(object sender, EventArgs e)
+        {
+            if (_currentImageIndex > 0)
+            {
+                _currentImageIndex--;
+                
+                // Load the input image
+                LoadAndDisplayInputImage(_imageFiles[_currentImageIndex]);
+                
+                // If detection has been completed, load corresponding output image
+                if (_detectionCompleted)
+                {
+                    LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
+                }
+                
+                UpdateNavigationButtons();
+            }
+        }
+        
+        private void nextButton_Click(object sender, EventArgs e)
+        {
+            if (_currentImageIndex < _imageFiles.Count - 1)
+            {
+                _currentImageIndex++;
+                
+                // Load the input image
+                LoadAndDisplayInputImage(_imageFiles[_currentImageIndex]);
+                
+                // If detection has been completed, load corresponding output image
+                if (_detectionCompleted)
+                {
+                    LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
+                }
+                
+                UpdateNavigationButtons();
             }
         }
 
@@ -659,176 +619,332 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 inputImage.Dispose();
             }
 
-            if (outputImage != null)
-            {
-                outputImage.Dispose();
-                outputImage = null;
-            }
-
             try
             {
                 // Load the new image
                 inputImage = Image.FromFile(imagePath);
 
-                // Display input image in both picture boxes
+                // Display input image in input picture box
                 inputPictureBox.Image = inputImage;
-                outputPictureBox.Image = inputImage;
-
-                // Configure display properties
                 inputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
-                outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
-
-                // Refresh displays
                 inputPictureBox.Refresh();
-                outputPictureBox.Refresh();
 
-                // Update output image label
-                outputImageLabel.Text = "Output Image (Showing Input - Run Detection)";
+                // If detection hasn't been completed, show input image in output box too
+                if (!_detectionCompleted || outputImage == null)
+                {
+                    outputPictureBox.Image = inputImage;
+                    outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                    outputPictureBox.Refresh();
+                    outputImageLabel.Text = "Output Image (Showing Input - Run Detection)";
+                }
+                
+                // Update input image label with filename
+                inputImageLabel.Text = $"Input Image: {Path.GetFileName(imagePath)}";
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error loading image: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
-        // Start detection flow
-        private async void startDetectionButton_Click(object sender, EventArgs e)
+        
+        // New method to load and display output image
+        private void LoadAndDisplayOutputImage(string inputImagePath)
+        {
+            // Clean up previous output image if it exists
+            if (outputImage != null)
+            {
+                outputImage.Dispose();
+                outputImage = null;
+            }
+            
+            try
+            {
+                // Construct the path to the output image
+                string filename = Path.GetFileName(inputImagePath);
+                string outputImagePath = Path.Combine(_outputDirectory, filename);
+                
+                // Check if the output image exists
+                if (File.Exists(outputImagePath))
+                {
+                    // Load the output image
+                    outputImage = Image.FromFile(outputImagePath);
+                    
+                    // Display the output image
+                    outputPictureBox.Image = outputImage;
+                    outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                    outputPictureBox.Refresh();
+                    
+                    // Update the output image label
+                    outputImageLabel.Text = $"Output Image: {filename}";
+                }
+                else
+                {
+                    // If output image doesn't exist, show input image instead
+                    outputPictureBox.Image = inputImage;
+                    outputPictureBox.Refresh();
+                    outputImageLabel.Text = "Output Image Not Found";
+                    
+                    Console.WriteLine($"Output image not found at: {outputImagePath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading output image: {ex.Message}");
+                outputPictureBox.Image = inputImage;
+                outputPictureBox.Refresh();
+                outputImageLabel.Text = "Error Loading Output Image";
+            }
+        }
+        
+        private void startServerButton_Click(object sender, EventArgs e)
         {
             try
             {
-                // Validate input selection
-                if (string.IsNullOrEmpty(selectedPath))
+                // Validate inputs
+                if (selectWeightsFileComboBox.SelectedItem == null)
                 {
-                    MessageBox.Show("Please select an image first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Please select a weights file.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
-
-                // Update UI to show processing state
-                UpdateUIForProcessingState(true);
-
-                // Generate detection command
-                string detectionCommand = _detectionService.BuildDetectionCommand(
+                
+                if (selectLabelsFileComboBox.SelectedItem == null)
+                {
+                    MessageBox.Show("Please select a Labels file.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                
+                // Show wait cursor
+                this.Cursor = Cursors.WaitCursor;
+                startServerButton.Enabled = false;
+                startServerButton.Text = "Starting...";
+                Application.DoEvents();
+                
+                // Make sure the models exist
+                string engineFile = selectWeightsFileComboBox.SelectedItem.ToString();
+                string labelsFile = selectLabelsFileComboBox.SelectedItem.ToString();
+                
+                // Verify the files actually exist in the Models directory
+                string enginePath = Path.Combine(_detectionService.GetAssetsPath(), engineFile);
+                string labelsPath = Path.Combine(_detectionService.GetAssetsPath(), labelsFile);
+                
+                if (!File.Exists(enginePath))
+                {
+                    MessageBox.Show($"Model file not found: {enginePath}\nPlease ensure the model file is in the Models directory.", 
+                        "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ResetServerButtonState();
+                    return;
+                }
+                
+                if (!File.Exists(labelsPath))
+                {
+                    MessageBox.Show($"Labels file not found: {labelsPath}\nPlease ensure the labels file is in the Models directory.", 
+                        "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ResetServerButtonState();
+                    return;
+                }
+                
+                // Start the detection server
+                string errorMessage;
+                bool success = _detectionService.StartServer(
                     "python",
-                    selectedPath,
-                    selectWeightsFileComboBox.SelectedItem.ToString(),
-                    selectYamlFileComboBox.SelectedItem.ToString(),
-                    projectNameTextBox.Text, 
-                    experimentNameTextBox.Text,
+                    engineFile,
+                    labelsFile,
                     imageResolutionHorizontalTextBox.Text,
                     imageResolutionVerticalTextBox.Text,
                     confidenceThresholdTextBox.Text,
                     iouThresholdTextBox.Text,
-                    enableCudaCheckBox.Checked,
-                    enableHalfPrecisionCheckBox.Checked,
                     hideLabelCheckBox.Checked,
                     hideConfidenceCheckBox.Checked,
-                    AppDomain.CurrentDomain.BaseDirectory
-                );
-
-                // Run the detection process asynchronously
-                var result = await _detectionService.ExecuteDetectionCommandAsync(
-                    detectionCommand, 
-                    "yolov5", 
-                    AppDomain.CurrentDomain.BaseDirectory
-                );
-
-                // Check for errors
-                if (!result.Success)
-                {
-                    throw new Exception($"Error running detection:\n{result.Error}\nOutput:\n{result.Output}");
-                }
-
-                // Process detection results
-                string outputDir = Path.Combine(
-                    AppDomain.CurrentDomain.BaseDirectory,
                     projectNameTextBox.Text,
-                    experimentNameTextBox.Text
+                    out errorMessage
                 );
                 
-                // Display results
-                DisplayDetectionResult(outputDir);
+                if (success)
+                {
+                    // Update UI state
+                    startServerButton.Enabled = false;
+                    startServerButton.Text = "Server Running";
+                    quitServerButton.Enabled = true;
+                    startDetectionButton.Enabled = true;
+                    
+                    // Lock configuration controls
+                    EnableConfigControls(false);
+                    
+                    MessageBox.Show("YOLOv5 detection server started successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show($"Failed to start detection server: {errorMessage}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ResetServerButtonState();
+                }
             }
             catch (Exception ex)
             {
-                // Handle any errors
                 MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ResetServerButtonState();
             }
             finally
             {
-                // Always reset UI state
-                UpdateUIForProcessingState(false);
+                this.Cursor = Cursors.Default;
             }
         }
-
-        private void UpdateUIForProcessingState(bool isProcessing)
+        
+        private void ResetServerButtonState()
         {
-            if (isProcessing)
+            startServerButton.Enabled = true;
+            startServerButton.Text = "Start Server";
+            this.Cursor = Cursors.Default;
+        }
+        
+        private void quitServerButton_Click(object sender, EventArgs e)
+        {
+            try
             {
-                // Set UI to processing state
-                startDetectionButton.Enabled = false;
-                startDetectionButton.Text = "Processing...";
-                startDetectionButton.BackColor = Color.Gray;
-                outputImageLabel.Text = "Output Image (Processing Detection...)";
-                outputImageLabel.Update();
+                // Show wait cursor
+                this.Cursor = Cursors.WaitCursor;
+                quitServerButton.Enabled = false;
+                quitServerButton.Text = "Stopping...";
                 Application.DoEvents();
-            }
-            else
-            {
-                // Reset UI state
-                startDetectionButton.Enabled = true;
-                startDetectionButton.Text = "▶ Start Detection";
-                startDetectionButton.BackColor = Color.LightGreen;
                 
-                // Only reset label if no detection was displayed
-                if (outputImage == null)
+                // Stop the detection server
+                string errorMessage;
+                bool success = _detectionService.StopServer(out errorMessage);
+                
+                if (success)
                 {
-                    outputImageLabel.Text = "Output Image (Showing Input - Run Detection)";
+                    // Update UI state
+                    startServerButton.Enabled = true;
+                    startServerButton.Text = "Start Server";
+                    quitServerButton.Enabled = false;
+                    quitServerButton.Text = "Stop Server";
+                    startDetectionButton.Enabled = false;
+                    
+                    // Unlock configuration controls
+                    EnableConfigControls(true);
+                    
+                    MessageBox.Show("YOLOv5 detection server stopped successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show($"Failed to stop detection server: {errorMessage}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    quitServerButton.Enabled = true;
+                    quitServerButton.Text = "Stop Server";
                 }
             }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                quitServerButton.Enabled = true;
+                quitServerButton.Text = "Stop Server";
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+            }
+        }
+        
+        private void EnableConfigControls(bool enabled)
+        {
+            // Enable/disable configuration controls
+            selectWeightsFileComboBox.Enabled = enabled;
+            selectLabelsFileComboBox.Enabled = enabled;
+            imageResolutionHorizontalTextBox.Enabled = enabled;
+            imageResolutionVerticalTextBox.Enabled = enabled;
+            confidenceThresholdTextBox.Enabled = enabled;
+            iouThresholdTextBox.Enabled = enabled;
+            projectNameTextBox.Enabled = enabled;
+            hideLabelCheckBox.Enabled = enabled;
+            hideConfidenceCheckBox.Enabled = enabled;
+            enableGpuCheckBox.Enabled = enabled;
         }
 
-        private void DisplayDetectionResult(string outputDir)
+        private void startDetectionButton_Click(object sender, EventArgs e)
         {
-            if (Directory.Exists(outputDir))
+            try
             {
-                // Get the input file name and extension
-                string inputFileName = Path.GetFileNameWithoutExtension(selectedPath);
-                string inputExtension = Path.GetExtension(selectedPath).ToLower();
-
-                // Directly construct the expected output file path with the same extension
-                string expectedOutputPath = Path.Combine(outputDir, inputFileName + inputExtension);
-
-                // Check if the file exists
-                if (File.Exists(expectedOutputPath))
+                // Validate selected path
+                if (string.IsNullOrEmpty(selectedPath))
                 {
-                    try
+                    MessageBox.Show("Please select an image or folder first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                
+                // Show a loading cursor
+                this.Cursor = Cursors.WaitCursor;
+                
+                // Disable detection button to prevent multiple requests
+                startDetectionButton.Enabled = false;
+                startDetectionButton.Text = "Processing...";
+                Application.DoEvents(); // Refresh UI
+                
+                string errorMessage;
+                bool success;
+                
+                // Log detection starting
+                Console.WriteLine($"Starting detection for: {selectedPath}");
+                Console.WriteLine($"Is folder: {isFolder}");
+                
+                // Set output directory
+                _outputDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Detections", projectNameTextBox.Text);
+                
+                // Check if we're processing an image or folder
+                if (isFolder)
+                {
+                    // Process folder
+                    Console.WriteLine($"Attempting to detect folder: {selectedPath}");
+                    success = _detectionService.DetectFolder(selectedPath, out errorMessage);
+                    
+                    if (success)
                     {
-                        // Load and display the output image
-                        if (outputImage != null)
+                        // Set detection completed flag
+                        _detectionCompleted = true;
+                        
+                        MessageBox.Show("Folder detection completed. Results saved in the Detections folder.", 
+                            "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        
+                        // Load the output image for the current image
+                        if (_imageFiles.Count > 0 && _currentImageIndex >= 0 && _currentImageIndex < _imageFiles.Count)
                         {
-                            outputImage.Dispose();
+                            LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
                         }
-
-                        outputImage = Image.FromFile(expectedOutputPath);
-                        outputPictureBox.Image = outputImage;
-                        outputPictureBox.Refresh();
-
-                        // Update output label
-                        outputImageLabel.Text = $"Output: {Path.GetFileName(expectedOutputPath)}";
-
-                        Console.WriteLine($"Found output image: {expectedOutputPath}");
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Error loading result image: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
                 else
                 {
-                    // No matching image found - show error
-                    MessageBox.Show($"No matching output image found for: {Path.GetFileName(selectedPath)}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    outputImageLabel.Text = "Output Image (No matching result found)";
+                    // Process single image
+                    Console.WriteLine($"Attempting to detect image: {selectedPath}");
+                    success = _detectionService.DetectImage(selectedPath, out errorMessage);
+                    
+                    if (success)
+                    {
+                        // Set detection completed flag
+                        _detectionCompleted = true;
+                        
+                        MessageBox.Show("Image detection completed. Results saved in the Detections folder.", 
+                            "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        
+                        // Load the output image
+                        LoadAndDisplayOutputImage(selectedPath);
+                    }
                 }
+                
+                if (!success)
+                {
+                    Console.WriteLine($"Detection failed: {errorMessage}");
+                    MessageBox.Show($"Failed to start detection: {errorMessage}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception in startDetectionButton_Click: {ex}");
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                // Restore cursor and button state
+                this.Cursor = Cursors.Default;
+                startDetectionButton.Enabled = true;
+                startDetectionButton.Text = "► Start Detection";
             }
         }
     }
