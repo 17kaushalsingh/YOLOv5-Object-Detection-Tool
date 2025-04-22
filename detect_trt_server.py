@@ -28,7 +28,7 @@ class TRTInferenceYolov5:
     """
 
     def __init__(self, engine_file_path, class_label_file, 
-                 input_shape, output_shape, conf_th, score_th, nms_th, 
+                 input_shape, output_shape, conf_th, nms_th, 
                  batch_size=1, show_labels=True, show_conf=True):
         """
         Initialize the inference engine with model parameters.
@@ -39,7 +39,6 @@ class TRTInferenceYolov5:
         input_shape (tuple): Shape of the input tensor.
         output_shape (tuple): Shape of the output tensor.
         conf_th (float): Confidence threshold for detections.
-        score_th (float): Score threshold for detections.
         nms_th (float): Non-maximum suppression threshold for detections.
         batch_size (int, optional): Batch size for inference. Defaults to 1.
         show_labels (bool, optional): Whether to show labels on detections. Defaults to True.
@@ -75,7 +74,6 @@ class TRTInferenceYolov5:
 
         # Define thresholds for detection
         self.conf_th = conf_th
-        self.score_th = score_th
         self.nms_th = nms_th
 
         # Initialize counters
@@ -98,12 +96,7 @@ class TRTInferenceYolov5:
             if hasattr(self, 'engine') and self.engine:
                 self.engine = None
                 
-            # Force cleanup of any remaining CUDA resources
-            try:
-                cuda.Context.pop()
-            except:
-                pass
-                
+
         except Exception as e:
             # Just log errors during cleanup, don't raise
             print(f"Warning during resource cleanup: {e}")
@@ -130,14 +123,12 @@ class TRTInferenceYolov5:
                     self.num_bindings = self.engine.num_bindings
                 except:
                     self.num_bindings = 2  # Default for YOLOv5
-                    print(f"Could not determine binding count, assuming {self.num_bindings}")
             
             # Set input dtype based to float32
             self.input_dtype = np.float32
             
         except Exception as e:
             print(f"Warning: Error during engine info gathering: {e}")
-            print(f"Using default settings for YOLOv5")
             self.num_bindings = 2
             self.input_dtype = np.float32
 
@@ -218,13 +209,14 @@ class TRTInferenceYolov5:
                 
         return images
 
-    def infer_single_image(self, image_path, save_dir_path):
+    def infer_single_image(self, image_path, save_dir_path, reset_counters=True):
         """
         Run inference on a single image.
         
         Args:
             image_path (str): Path to the image file.
             save_dir_path (str): Directory to save the output image.
+            reset_counters (bool, optional): Whether to reset counters. Defaults to True.
             
         Returns:
             dict: Dictionary containing detection results and paths.
@@ -232,8 +224,9 @@ class TRTInferenceYolov5:
         os.makedirs(save_dir_path, exist_ok=True)
         
         # Reset counters for this inference
-        self.reset_counters()
-        self.num_frames = 1
+        if reset_counters:
+            self.reset_counters()
+            self.num_frames = 1
         
         try:
             # Preprocess the image
@@ -268,25 +261,18 @@ class TRTInferenceYolov5:
             d_output.free()
 
             # Record inference time
-            self.inference_time = time.time() - inference_start
-            self.total_time += self.inference_time
+            inference_time = time.time() - inference_start
+            self.inference_time += inference_time
+            self.total_time += inference_time
 
             # Postprocess the result
             output_path = os.path.join(save_dir_path, os.path.basename(image_path))
             detections = self.postprocess_image(image_path, output, original_dimensions, output_path)
             
-            # Generate metrics
-            metrics = self.generate_metrics()
-            
-            # Save logs if detections exist
-            log_file = os.path.join(save_dir_path, "inference_logs.txt")
-            self.save_logs(metrics, log_file)
-            
             return {
                 "success": True,
                 "input_path": image_path,
                 "output_path": output_path,
-                "metrics": metrics,
                 "detections": detections
             }
             
@@ -331,53 +317,11 @@ class TRTInferenceYolov5:
         
         for idx, image_path in enumerate(image_paths):
             try:
-                # Preprocess the image
-                start_time = time.time()
-                input_data, original_dimensions = self.preprocess_image(image_path)
-                preprocess_time = time.time() - start_time
-                self.total_time += preprocess_time
+                # Call infer_single_image without resetting counters
+                result = self.infer_single_image(image_path, save_dir_path, reset_counters=False)
                 
-                # Prepare input data for inference
-                input_data = np.ascontiguousarray(input_data)
-                output = np.empty(self.output_shape, dtype=self.input_dtype)
-
-                # Run inference
-                inference_start = time.time()
-                
-                # Allocate GPU memory
-                d_input = cuda.mem_alloc(1 * input_data.nbytes)
-                d_output = cuda.mem_alloc(1 * output.nbytes)
-
-                # Copy input data to GPU
-                cuda.memcpy_htod(d_input, input_data)
-
-                # Run inference - using the approach from run_inferences.py
-                bindings = [d_input, d_output]
-                self.context.execute_v2(bindings)
-
-                # Copy results back to host
-                cuda.memcpy_dtoh(output, d_output)
-
-                # Free GPU memory
-                d_input.free()
-                d_output.free()
-
-                # Record inference time
-                frame_inference_time = time.time() - inference_start
-                self.inference_time += frame_inference_time
-                self.total_time += frame_inference_time
-
-                # Postprocess the result
-                output_path = os.path.join(save_dir_path, os.path.basename(image_path))
-                detections = self.postprocess_image(image_path, output, original_dimensions, output_path)
-                
-                # Add to results
-                results.append({
-                    "success": True,
-                    "input_path": image_path,
-                    "output_path": output_path,
-                    "detections": detections
-                })
+                # Add to results list
+                results.append(result)
                 
                 print(f"\rProcessing {idx+1}/{len(image_paths)} images", end="")
                 
@@ -391,14 +335,10 @@ class TRTInferenceYolov5:
                     "error": error_msg
                 })
         
-        print("\nFolder processing complete")
-        
-        # Generate metrics
+        print()
+                
+        # Return metrics as part of the result
         metrics = self.generate_metrics()
-        
-        # Save logs
-        log_file = os.path.join(save_dir_path, "inference_logs.txt")
-        self.save_logs(metrics, log_file)
         
         return {
             "success": True,
@@ -424,7 +364,6 @@ class TRTInferenceYolov5:
 
         # Check for NaN values in the output
         if np.isnan(yolov5_output).any():
-            print(f"Warning: NaN values detected in model output for {image_path}")
             self.invalid_outputs += 1
             # Create a blank image with text
             image = cv2.imread(image_path)
@@ -468,7 +407,8 @@ class TRTInferenceYolov5:
             class_score = detect[5:]
             class_idx = np.argmax(class_score)
 
-            if class_score[class_idx] < self.score_th:
+            # Use the same confidence threshold for class score as in standard YOLOv5
+            if class_score[class_idx] < self.conf_th:
                 continue
 
             # YOLO format normalized coordinates (center_x, center_y, width, height)
@@ -500,6 +440,7 @@ class TRTInferenceYolov5:
                 confidences.append(float(conf))
                 bboxes.append(box)
                 yolo_bboxes.append(yolo_box)
+                
             except (ValueError, OverflowError) as e:
                 print(f"Error processing detection: {e}")
                 continue
@@ -606,39 +547,6 @@ class TRTInferenceYolov5:
         
         return metrics
 
-    def save_logs(self, metrics, log_file):
-        """
-        Saves the inference logs to a file.
-        
-        Args:
-            metrics (dict): The performance metrics to log.
-            log_file (str): Path to save the log file.
-        """
-        if not metrics:
-            return
-        
-        with open(log_file, "w") as f:
-            f.write(f"TensorRT YOLOv5 Inference Logs\n")
-            f.write("=" * 60 + "\n")
-            f.write(f"Model Used: YOLOv5 TensorRT\n")
-            f.write(f"Confidence Threshold: {self.conf_th}\n")
-            f.write(f"Score Threshold: {self.score_th}\n")
-            f.write(f"NMS Threshold: {self.nms_th}\n")
-            f.write("=" * 60 + "\n")
-            f.write(f"Processed {metrics['num_frames']} images\n")
-            f.write(f"Images with invalid outputs: {metrics['invalid_outputs']}\n")
-            f.write(f"Total time (Preprocessing + Inference + Postprocessing): {metrics['total_time']:.3f}s\n")   
-            f.write(f"Inference time: {metrics['inference_time']:.3f}s\n")
-            f.write(f"Average FPS: {metrics['average_fps']:.3f}\n")
-            f.write(f"Average inference time per image: {metrics['average_inference_time'] * 1000:.2f}ms\n")
-            f.write("=" * 60 + "\n")
-            f.write(f"Total objects detected: {metrics['total_objects']}\n")
-            f.write("\nDetections by class:\n")
-            for class_name, count in metrics['objects_by_class'].items():
-                f.write(f"    {class_name}: {count}\n")
-        
-        print(f"Logs saved to {log_file}")
-        
 class YOLOv5Server:
     """
     A server that loads a YOLOv5 TensorRT model once and processes multiple inference requests.
@@ -649,7 +557,7 @@ class YOLOv5Server:
     """
     
     def __init__(self, engine_path, labels_path, input_shape, output_shape, 
-                 conf_thresh, score_thresh, nms_thresh, port=5000, 
+                 conf_thresh, nms_thresh, port=5000, 
                  show_labels=True, show_conf=True, output_dir=None):
         """
         Initialize the YOLOv5 inference server.
@@ -660,7 +568,6 @@ class YOLOv5Server:
             input_shape (tuple): Shape of the input tensor.
             output_shape (tuple): Shape of the output tensor.
             conf_thresh (float): Confidence threshold for detections.
-            score_thresh (float): Score threshold for detections.
             nms_thresh (float): NMS threshold for detections.
             port (int, optional): Port to listen on for commands. Defaults to 5000.
             show_labels (bool, optional): Whether to show labels on detections. Defaults to True.
@@ -674,7 +581,6 @@ class YOLOv5Server:
             input_shape=input_shape,
             output_shape=output_shape,
             conf_th=conf_thresh,
-            score_th=score_thresh,
             nms_th=nms_thresh,
             show_labels=show_labels,
             show_conf=show_conf
@@ -688,18 +594,17 @@ class YOLOv5Server:
         # Create detection directories
         self.detections_dir = "Detections"
         
-        # If output_dir is specified, use it as a subdirectory inside Detections
+        # Create output directory
         if output_dir:
+            # If user specified directory exists, append timestamp
             temp_output_dir = os.path.join(self.detections_dir, output_dir)
-            # Check if the directory already exists
             if os.path.exists(temp_output_dir):
-                # Generate a timestamp-based directory name
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 self.output_dir = os.path.join(self.detections_dir, f"{output_dir}_{timestamp}")
             else:
                 self.output_dir = temp_output_dir
         else:
-            # Generate a timestamp-based directory name
+            # Create timestamp-based directory if no directory specified
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             self.output_dir = os.path.join(self.detections_dir, f"results_{timestamp}")
         
@@ -742,13 +647,9 @@ class YOLOv5Server:
         Start the server and listen for commands.
         
         This method initializes the server and starts processing commands.
-        It sets up a separate thread for command processing and handles
-        signal interrupts for clean shutdown.
+        It sets up signal interrupts for clean shutdown.
         """
         self.running = True
-        self.command_thread = threading.Thread(target=self._command_loop)
-        self.command_thread.daemon = True
-        self.command_thread.start()
         
         # Set up signal handler for clean shutdown
         signal.signal(signal.SIGINT, self._handle_sigint)
@@ -757,12 +658,11 @@ class YOLOv5Server:
         try:
             self._process_commands()
         except KeyboardInterrupt:
-            print("Received keyboard interrupt. Shutting down...")
+            pass
         finally:
             self.running = False
             # Ensure proper cleanup on exit
             self.cleanup()
-            print("Server shutting down...")
     
     def _handle_sigint(self, sig, frame):
         """
@@ -772,32 +672,13 @@ class YOLOv5Server:
             sig: Signal number
             frame: Current stack frame
         """
-        print("Received SIGINT. Shutting down...")
         self.running = False
-        # Ensure proper cleanup on signal
-        self.cleanup()
+        self.cleanup() # Ensure proper cleanup on signal
     
-    def _command_loop(self):
-        """
-        Listen for commands on a socket.
-        
-        In this implementation, we're using command-line arguments instead
-        of socket communication for simplicity and easier C# integration.
-        """
-        pass
-        
     def _process_commands(self):
         """
         Process commands from user input.
-        
-        This method reads user input and dispatches
-        to the appropriate handler based on the command type.
         """
-        print("\nServer is running. Enter commands:")
-        print("  image --image <path_to_image>")
-        print("  folder --folder <path_to_folder>")
-        print("  quit")
-        
         while self.running:
             try:
                 # Get command from user
@@ -809,21 +690,19 @@ class YOLOv5Server:
                     
                     # Check for empty command or missing arguments
                     if len(args) < 3:
-                        print("Invalid command. Usage: image --image <path_to_image>")
                         continue
                     
                     # Find the image path
                     try:
                         img_index = args.index("--image") + 1
                         if img_index >= len(args):
-                            print("Missing image path. Usage: image --image <path_to_image>")
                             continue
                         image_path = args[img_index]
                         
                         # Process the image
                         self._process_single_image(image_path)
                     except ValueError:
-                        print("Invalid command. Usage: image --image <path_to_image>")
+                        pass
                     
                 elif command.startswith("folder"):
                     # Parse command like: folder --folder path/to/folder
@@ -831,28 +710,24 @@ class YOLOv5Server:
                     
                     # Check for empty command or missing arguments
                     if len(args) < 3:
-                        print("Invalid command. Usage: folder --folder <path_to_folder>")
                         continue
                     
                     # Find the folder path
                     try:
                         folder_index = args.index("--folder") + 1
                         if folder_index >= len(args):
-                            print("Missing folder path. Usage: folder --folder <path_to_folder>")
                             continue
                         folder_path = args[folder_index]
                         
                         # Process the folder
                         self._process_folder(folder_path)
                     except ValueError:
-                        print("Invalid command. Usage: folder --folder <path_to_folder>")
+                        pass
                     
                 elif command == "quit":
-                    print("Received quit command")
                     self.running = False
                 else:
-                    print(f"Unknown command: {command}")
-                    print("Available commands: image, folder, quit")
+                    pass
                 
             except Exception as e:
                 print(f"Error processing command: {str(e)}")
@@ -893,17 +768,11 @@ class YOLOv5Server:
     def _process_single_image(self, image_path):
         """
         Process a single image.
-        
-        Args:
-            image_path (str): Path to the image file.
         """
         try:
             if not os.path.exists(image_path):
+                print(f"Error: Image not found at {image_path}")
                 return
-            
-            # Get output paths
-            image_filename = os.path.basename(image_path)
-            output_image_path = os.path.join(self.output_dir, image_filename)
             
             # Run inference
             result = self.inferencer.infer_single_image(image_path, self.output_dir)
@@ -911,11 +780,6 @@ class YOLOv5Server:
             # Write detections to CSV
             if result["success"] and "detections" in result:
                 self._write_detections_to_csv(image_path, result["detections"])
-            
-            # Print summary
-            if not result["success"]:
-                print(f"Failed to process image: {image_path}")
-                print(f"Error: {result.get('error', 'Unknown error')}")
 
         except Exception as e:
             print(f"Error processing image {image_path}: {str(e)}")
@@ -924,9 +788,6 @@ class YOLOv5Server:
     def _process_folder(self, folder_path):
         """
         Process all images in a folder.
-        
-        Args:
-            folder_path (str): Path to the folder containing images.
         """
         try:
             if not os.path.exists(folder_path):
@@ -944,11 +805,6 @@ class YOLOv5Server:
                             img_result["input_path"], 
                             img_result["detections"]
                         )
-            
-            # Print summary
-            if not result["success"]:
-                print(f"Failed to process folder: {folder_path}")
-                print(f"Error: {result.get('error', 'Unknown error')}")
 
         except Exception as e:
             print(f"Error processing folder {folder_path}: {str(e)}")
@@ -957,310 +813,69 @@ class YOLOv5Server:
 def main():
     """
     Main entry point for the YOLOv5 TensorRT Inference Server.
-    
-    This function parses command-line arguments and dispatches to the appropriate
-    handler based on the requested mode (server, image, folder, quit).
     """
     # Set up command line argument parser
     parser = argparse.ArgumentParser(description='YOLOv5 TensorRT Inference Server')
     
-    # Create subparsers for different modes
-    subparsers = parser.add_subparsers(dest='mode', help='Server mode')
-    
-    # Server initialization parser
-    server_parser = subparsers.add_parser('server', help='Start the inference server')
-    server_parser.add_argument('--engine', required=True, type=str, help='Path to TensorRT engine file')
-    server_parser.add_argument('--labels', required=True, type=str, help='Path to YAML file containing class labels')
-    server_parser.add_argument('--input_shape', type=str, default='1,3,1280,1280', help='Input shape as comma-separated values (default: 1,3,1280,1280)')
-    server_parser.add_argument('--output_shape', type=str, default='1,100800,15', help='Output shape as comma-separated values (default: 1,100800,15)')
-    server_parser.add_argument('--conf_thresh', type=float, default=0.25, help='Confidence threshold (default: 0.25)')
-    server_parser.add_argument('--score_thresh', type=float, default=0.25, help='Score threshold (default: 0.25)')
-    server_parser.add_argument('--nms_thresh', type=float, default=0.45, help='NMS threshold (default: 0.45)')
-    server_parser.add_argument('--port', type=int, default=5000, help='Port for communication (default: 5000)')
-    server_parser.add_argument('--hide_labels', action='store_true', help='Hide class labels on detections (default: False)')
-    server_parser.add_argument('--hide_conf', action='store_true', help='Hide confidence values on detections (default: False)')
-    server_parser.add_argument('--output_dir', type=str, help='Output subdirectory name (default: timestamp-based name)')
-    
-    # Image inference parser - when called directly without server
-    image_parser = subparsers.add_parser('image', help='Run inference on a single image')
-    image_parser.add_argument('--engine', required=True, type=str, help='Path to TensorRT engine file')
-    image_parser.add_argument('--labels', required=True, type=str, help='Path to YAML file containing class labels')
-    image_parser.add_argument('--input_shape', type=str, default='1,3,1280,1280', help='Input shape as comma-separated values')
-    image_parser.add_argument('--output_shape', type=str, default='1,100800,15', help='Output shape as comma-separated values')
-    image_parser.add_argument('--image', required=True, type=str, help='Path to image file')
-    image_parser.add_argument('--conf_thresh', type=float, default=0.25, help='Confidence threshold')
-    image_parser.add_argument('--score_thresh', type=float, default=0.25, help='Score threshold')
-    image_parser.add_argument('--nms_thresh', type=float, default=0.45, help='NMS threshold')
-    image_parser.add_argument('--hide_labels', action='store_true', help='Hide class labels on detections')
-    image_parser.add_argument('--hide_conf', action='store_true', help='Hide confidence values on detections')
-    image_parser.add_argument('--output_dir', type=str, help='Output subdirectory name (default: timestamp-based name)')
-                       
-    # Folder inference parser - when called directly without server
-    folder_parser = subparsers.add_parser('folder', help='Run inference on a folder of images')
-    folder_parser.add_argument('--engine', required=True, type=str, help='Path to TensorRT engine file')
-    folder_parser.add_argument('--labels', required=True, type=str, help='Path to YAML file containing class labels')
-    folder_parser.add_argument('--input_shape', type=str, default='1,3,1280,1280', help='Input shape as comma-separated values')
-    folder_parser.add_argument('--output_shape', type=str, default='1,100800,15', help='Output shape as comma-separated values')
-    folder_parser.add_argument('--folder', required=True, type=str, help='Path to folder containing images')
-    folder_parser.add_argument('--conf_thresh', type=float, default=0.25, help='Confidence threshold')
-    folder_parser.add_argument('--score_thresh', type=float, default=0.25, help='Score threshold')
-    folder_parser.add_argument('--nms_thresh', type=float, default=0.45, help='NMS threshold')
-    folder_parser.add_argument('--hide_labels', action='store_true', help='Hide class labels on detections')
-    folder_parser.add_argument('--hide_conf', action='store_true', help='Hide confidence values on detections')
-    folder_parser.add_argument('--output_dir', type=str, help='Output subdirectory name (default: timestamp-based name)')
-    
-    # Quit command parser
-    quit_parser = subparsers.add_parser('quit', help='Quit the server')
+    # Server initialization parser - the only mode available
+    parser.add_argument('--engine', required=True, type=str, help='Path to TensorRT engine file')
+    parser.add_argument('--labels', required=True, type=str, help='Path to YAML file containing class labels')
+    parser.add_argument('--input_shape', type=str, default='1,3,1280,1280', help='Input shape as comma-separated values (default: 1,3,1280,1280)')
+    parser.add_argument('--output_shape', type=str, default='1,100800,15', help='Output shape as comma-separated values (default: 1,100800,15)')
+    parser.add_argument('--conf_thresh', type=float, default=0.25, help='Confidence threshold (default: 0.25)')
+    parser.add_argument('--nms_thresh', type=float, default=0.45, help='NMS threshold (default: 0.45)')
+    parser.add_argument('--port', type=int, default=5000, help='Port for communication (default: 5000)')
+    parser.add_argument('--hide_labels', action='store_true', help='Hide class labels on detections (default: False)')
+    parser.add_argument('--hide_conf', action='store_true', help='Hide confidence values on detections (default: False)')
+    parser.add_argument('--output_dir', type=str, help='Output subdirectory name (default: timestamp-based name)')
     
     # Parse arguments
     args = parser.parse_args()
     
-    if args.mode == 'server':
+    try:
         # Convert string shapes to tuples
         input_shape = tuple(map(int, args.input_shape.split(',')))
         output_shape = tuple(map(int, args.output_shape.split(',')))
         
+        # Start the server
+        server = YOLOv5Server(
+            engine_path=args.engine,
+            labels_path=args.labels,
+            input_shape=input_shape,
+            output_shape=output_shape,
+            conf_thresh=args.conf_thresh,
+            nms_thresh=args.nms_thresh,
+            port=args.port,
+            show_labels=not args.hide_labels,
+            show_conf=not args.hide_conf,
+            output_dir=args.output_dir
+        )
+        
+        # Set up a try-finally block for proper resource cleanup
         try:
-            # Start the server
-            server = YOLOv5Server(
-                engine_path=args.engine,
-                labels_path=args.labels,
-                input_shape=input_shape,
-                output_shape=output_shape,
-                conf_thresh=args.conf_thresh,
-                score_thresh=args.score_thresh,
-                nms_thresh=args.nms_thresh,
-                port=args.port,
-                show_labels=not args.hide_labels,
-                show_conf=not args.hide_conf,
-                output_dir=args.output_dir
-            )
-            
-            # Set up a try-finally block for proper resource cleanup
-            try:
-                # Register a cleanup function to be called on exit to prevent CUDA errors
-                import atexit
-                def safe_cleanup():
-                    try:
-                        if 'server' in locals() and server:
-                            # Redundant cleanup during atexit to avoid errors
-                            # This prevents the "cannot pop non-current context" error
-                            pass
-                    except Exception:
+            # Register a cleanup function to be called on exit to prevent CUDA errors
+            import atexit
+            def safe_cleanup():
+                try:
+                    if 'server' in locals() and server:
                         pass
-                atexit.register(safe_cleanup)
-                
-                # Start the server
-                server.start()
-            finally:
-                # Ensure cleanup happens even if there's an exception
-                if 'server' in locals():
-                    server.cleanup()
-            return 0
-        except Exception as e:
-            print(f"Error starting server: {str(e)}")
-            traceback.print_exc()
-            return 1
-    elif args.mode == 'image':
-        # Direct image inference without server
-        try:
-            # Set up output directory
-            detections_dir = "Detections"
-            if args.output_dir:
-                temp_output_dir = os.path.join(detections_dir, args.output_dir)
-                # Check if the directory already exists
-                if os.path.exists(temp_output_dir):
-                    print(f"Warning: Output directory '{temp_output_dir}' already exists.")
-                    # Generate a timestamp-based directory name
-                    timestamp = time.strftime("%Y%m%d_%H%M%S")
-                    output_dir = os.path.join(detections_dir, f"{args.output_dir}_{timestamp}")
-                    print(f"Using '{output_dir}' instead to avoid overwriting existing files.")
-                else:
-                    output_dir = temp_output_dir
-            else:
-                # Generate a timestamp-based directory name
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                output_dir = os.path.join(detections_dir, f"results_{timestamp}")
+                except Exception:
+                    pass
+            atexit.register(safe_cleanup)
             
-            # Create directories if they don't exist
-            os.makedirs(detections_dir, exist_ok=True)
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # Set up CSV file for detections
-            csv_path = os.path.join(output_dir, "detections.csv")
-            if not os.path.exists(csv_path):
-                with open(csv_path, 'w', newline='') as csvfile:
-                    writer = csv.writer(csvfile)
-                    writer.writerow(['image_file', 'class', 'confidence', 
-                                    'x', 'y', 'width', 'height', 
-                                    'center_x_norm', 'center_y_norm', 'width_norm', 'height_norm'])
-            
-            # Convert string shapes to tuples
-            input_shape = tuple(map(int, args.input_shape.split(',')))
-            output_shape = tuple(map(int, args.output_shape.split(',')))
-            
-            # Create the inference engine
-            inferencer = TRTInferenceYolov5(
-                engine_file_path=args.engine,
-                class_label_file=args.labels,
-                input_shape=input_shape,
-                output_shape=output_shape,
-                conf_th=args.conf_thresh,
-                score_th=args.score_thresh,
-                nms_th=args.nms_thresh,
-                show_labels=not args.hide_labels,
-                show_conf=not args.hide_conf
-            )
-            
-            try:
-                # Get output paths
-                image_filename = os.path.basename(args.image)
-                output_image_path = os.path.join(output_dir, image_filename)
-                
-                # Run inference
-                result = inferencer.infer_single_image(args.image, output_dir)
-                
-                # Write detections to CSV
-                if result["success"] and "detections" in result:
-                    with open(csv_path, 'a', newline='') as csvfile:
-                        writer = csv.writer(csvfile)
-                        for detection in result["detections"]:
-                            bbox = detection['bbox']
-                            yolo_bbox = detection['yolo_bbox']
-                            writer.writerow([
-                                image_filename,
-                                detection['class'],
-                                detection['confidence'],
-                                bbox[0],  # x
-                                bbox[1],  # y
-                                bbox[2],  # width
-                                bbox[3],  # height
-                                yolo_bbox[0],  # center_x_norm
-                                yolo_bbox[1],  # center_y_norm
-                                yolo_bbox[2],  # width_norm
-                                yolo_bbox[3]   # height_norm
-                            ])
-                
-                # Print summary
-                if result["success"]:
-                    print(f"Successfully processed image: {args.image}")
-                    print(f"Output image saved to: {output_image_path}")
-                    print(f"Detected {result['metrics']['total_objects']} objects")
-                    print(f"Results added to: {csv_path}")
-                else:
-                    print(f"Failed to process image: {args.image}")
-                    print(f"Error: {result.get('error', 'Unknown error')}")
-            finally:
-                # Make sure we clean up
-                inferencer.cleanup()
-            
-            return 0
-        except Exception as e:
-            print(f"Error processing image: {str(e)}")
-            traceback.print_exc()
-            return 1
-    elif args.mode == 'folder':
-        # Direct folder inference without server
-        try:
-            # Set up output directory
-            detections_dir = "Detections"
-            if args.output_dir:
-                temp_output_dir = os.path.join(detections_dir, args.output_dir)
-                # Check if the directory already exists
-                if os.path.exists(temp_output_dir):
-                    print(f"Warning: Output directory '{temp_output_dir}' already exists.")
-                    # Generate a timestamp-based directory name
-                    timestamp = time.strftime("%Y%m%d_%H%M%S")
-                    output_dir = os.path.join(detections_dir, f"{args.output_dir}_{timestamp}")
-                    print(f"Using '{output_dir}' instead to avoid overwriting existing files.")
-                else:
-                    output_dir = temp_output_dir
-            else:
-                # Generate a timestamp-based directory name
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                output_dir = os.path.join(detections_dir, f"results_{timestamp}")
-            
-            # Create directories if they don't exist
-            os.makedirs(detections_dir, exist_ok=True)
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # Set up CSV file for detections
-            csv_path = os.path.join(output_dir, "detections.csv")
-            if not os.path.exists(csv_path):
-                with open(csv_path, 'w', newline='') as csvfile:
-                    writer = csv.writer(csvfile)
-                    writer.writerow(['image_file', 'class', 'confidence', 
-                                    'x', 'y', 'width', 'height', 
-                                    'center_x_norm', 'center_y_norm', 'width_norm', 'height_norm'])
-            
-            # Convert string shapes to tuples
-            input_shape = tuple(map(int, args.input_shape.split(',')))
-            output_shape = tuple(map(int, args.output_shape.split(',')))
-            
-            # Create the inference engine
-            inferencer = TRTInferenceYolov5(
-                engine_file_path=args.engine,
-                class_label_file=args.labels,
-                input_shape=input_shape,
-                output_shape=output_shape,
-                conf_th=args.conf_thresh,
-                score_th=args.score_thresh,
-                nms_th=args.nms_thresh,
-                show_labels=not args.hide_labels,
-                show_conf=not args.hide_conf
-            )
-            
-            try:
-                # Run inference
-                result = inferencer.infer_folder(args.folder, output_dir)
-                
-                # Write all detections to CSV
-                if result["success"] and "results" in result:
-                    for img_result in result["results"]:
-                        if img_result["success"] and "detections" in img_result:
-                            image_filename = os.path.basename(img_result["input_path"])
-                            for detection in img_result["detections"]:
-                                bbox = detection['bbox']
-                                yolo_bbox = detection['yolo_bbox']
-                                with open(csv_path, 'a', newline='') as csvfile:
-                                    writer = csv.writer(csvfile)
-                                    writer.writerow([
-                                        image_filename,
-                                        detection['class'],
-                                        detection['confidence'],
-                                        bbox[0],  # x
-                                        bbox[1],  # y
-                                        bbox[2],  # width
-                                        bbox[3],  # height
-                                        yolo_bbox[0],  # center_x_norm
-                                        yolo_bbox[1],  # center_y_norm
-                                        yolo_bbox[2],  # width_norm
-                                        yolo_bbox[3]   # height_norm
-                                    ])
-                
-                # Print summary
-                if result["success"]:
-                    print(f"Successfully processed folder: {args.folder}")
-                    print(f"Output images saved to: {output_dir}")
-                    print(f"Processed {result['metrics']['num_frames']} images")
-                    print(f"Detected {result['metrics']['total_objects']} objects")
-                    print(f"Results added to: {csv_path}")
-                else:
-                    print(f"Failed to process folder: {args.folder}")
-                    print(f"Error: {result.get('error', 'Unknown error')}")
-            finally:
-                # Make sure we clean up
-                inferencer.cleanup()
-            
-            return 0
-        except Exception as e:
-            print(f"Error processing folder: {str(e)}")
-            traceback.print_exc()
-            return 1
-    else:
-        parser.print_help()
+            # Start the server
+            print("Starting YOLOv5 TensorRT server...")
+            server.start()
+        finally:
+            # Ensure cleanup happens even if there's an exception
+            if 'server' in locals():
+                server.cleanup()
+        return 0
+
+    except Exception as e:
+        print(f"Error starting server: {str(e)}")
+        traceback.print_exc()
         return 1
 
 if __name__ == "__main__":
     sys.exit(main())
-    
