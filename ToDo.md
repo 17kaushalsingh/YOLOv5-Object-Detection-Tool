@@ -19,8 +19,13 @@
     + Run inferences image by image, while keeping the model loaded
     + Run inferences on entire folder in one go, while keeping the model loaded
     + Add functionality to save cordinates and other detection information in multiple formats
+    + Add code for cpu only devices
+    + Modify yolov5/detect.py to work in server mode
 
 ## Future Tasks
 1. Automatic environment setup
     + Craete a docker image to run the application in containerized manner
 2. Create a one click installer to run the application
+3. Clone from GiitHub
+    + Setup dependencies
+    + Download model files
