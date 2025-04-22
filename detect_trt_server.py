@@ -24,7 +24,16 @@ class TRTInferenceYolov5:
     TRTInferenceYolov5 is a class for performing YOLOv5 object detection using TensorRT.
     
     This class loads a TensorRT engine once and keeps it in memory for multiple inference requests.
-    It supports both single image inference and folder inference.
+    It provides optimized inference for both single images and folders of images. By maintaining
+    the engine and context in memory, it eliminates the overhead of reloading the model for each
+    detection request, resulting in significantly faster processing times.
+    
+    Key features:
+    - Efficient TensorRT engine management
+    - Single image and batch processing capabilities
+    - Detailed detection results with both pixel and normalized coordinates
+    - Performance metrics tracking
+    - Proper GPU resource management
     """
 
     def __init__(self, engine_file_path, class_label_file, 
@@ -33,17 +42,17 @@ class TRTInferenceYolov5:
         """
         Initialize the inference engine with model parameters.
 
-    Args:
-        engine_file_path (str): Path to the TensorRT engine file.
-        class_label_file (str): Path to the .yaml file containing class labels.
-        input_shape (tuple): Shape of the input tensor.
-        output_shape (tuple): Shape of the output tensor.
-        conf_th (float): Confidence threshold for detections.
-        nms_th (float): Non-maximum suppression threshold for detections.
-        batch_size (int, optional): Batch size for inference. Defaults to 1.
-        show_labels (bool, optional): Whether to show labels on detections. Defaults to True.
-        show_conf (bool, optional): Whether to show confidence values on detections. Defaults to True.
-    """
+        Args:
+            engine_file_path (str): Path to the TensorRT engine file (.engine).
+            class_label_file (str): Path to the .yaml file containing class labels.
+            input_shape (tuple): Shape of the input tensor (batch, channels, height, width).
+            output_shape (tuple): Shape of the output tensor from the model.
+            conf_th (float): Confidence threshold for detections (0.0-1.0).
+            nms_th (float): Non-maximum suppression threshold for detections (0.0-1.0).
+            batch_size (int, optional): Batch size for inference. Defaults to 1.
+            show_labels (bool, optional): Whether to show labels on detections. Defaults to True.
+            show_conf (bool, optional): Whether to show confidence values on detections. Defaults to True.
+        """
         # Create logger
         self.logger = trt.Logger(trt.Logger.WARNING)
 
@@ -213,13 +222,26 @@ class TRTInferenceYolov5:
         """
         Run inference on a single image.
         
+        This method performs the complete detection pipeline on a single image:
+        1. Preprocesses the image to the required input format
+        2. Runs inference using the TensorRT engine
+        3. Postprocesses the output to interpret detection results
+        4. Draws bounding boxes and saves the annotated image
+        
         Args:
-            image_path (str): Path to the image file.
-            save_dir_path (str): Directory to save the output image.
-            reset_counters (bool, optional): Whether to reset counters. Defaults to True.
+            image_path (str): Path to the input image file.
+            save_dir_path (str): Directory to save the output image and results.
+            reset_counters (bool, optional): Whether to reset performance counters.
+                Set to False when processing multiple images to get aggregate metrics.
+                Defaults to True.
             
         Returns:
-            dict: Dictionary containing detection results and paths.
+            dict: Dictionary containing detection results and paths with keys:
+                - "success": Boolean indicating successful processing
+                - "input_path": Path to the original image
+                - "output_path": Path to the saved output image
+                - "detections": List of detection objects (class, confidence, bbox)
+                - "error": Error message (only present if success=False)
         """
         os.makedirs(save_dir_path, exist_ok=True)
         
@@ -350,14 +372,26 @@ class TRTInferenceYolov5:
         """
         Postprocesses the YOLOv5 output to draw bounding boxes and labels on the image.
         
+        This method:
+        1. Interprets the raw model output tensor
+        2. Filters detections based on confidence and class score
+        3. Converts normalized coordinates to pixel coordinates
+        4. Applies non-maximum suppression to remove duplicate detections
+        5. Draws bounding boxes and labels on the image
+        6. Saves the annotated image
+        
         Args:
             image_path (str): Path to the input image.
-            yolov5_output (np.ndarray): The output from the YOLOv5 model.
+            yolov5_output (np.ndarray): The raw output from the YOLOv5 model.
             original_dimensions (tuple): Original dimensions of the image (height, width).
-            output_path (str): Path to save the processed image.
+            output_path (str): Path to save the processed image with annotations.
             
         Returns:
-            list: List of detection objects with class, confidence, and bounding box.
+            list: List of detection objects, each containing:
+                - "class": Detected class name
+                - "confidence": Detection confidence score (0.0-1.0)
+                - "bbox": Bounding box in pixel coordinates [x, y, width, height]
+                - "yolo_bbox": Bounding box in normalized YOLO format [center_x, center_y, width, height]
         """
         # List to store detection results
         detections = []
@@ -551,9 +585,16 @@ class YOLOv5Server:
     """
     A server that loads a YOLOv5 TensorRT model once and processes multiple inference requests.
     
-    This server loads the model into memory at startup and keeps it loaded,
-    which eliminates the overhead of reloading the model for each inference request.
-    This approach significantly improves performance for repeated inference calls.
+    This server maintains the model in memory throughout its lifecycle, providing
+    a command-line interface for users to request detections on images or folders.
+    It handles resource management, output organization, and result storage.
+    
+    Key features:
+    - Interactive command processing
+    - CSV output for detection results
+    - Organized output directory structure
+    - Proper cleanup on shutdown
+    - Signal handling for graceful termination
     """
     
     def __init__(self, engine_path, labels_path, input_shape, output_shape, 
@@ -567,9 +608,9 @@ class YOLOv5Server:
             labels_path (str): Path to the YAML file containing class labels.
             input_shape (tuple): Shape of the input tensor.
             output_shape (tuple): Shape of the output tensor.
-            conf_thresh (float): Confidence threshold for detections.
-            nms_thresh (float): NMS threshold for detections.
-            port (int, optional): Port to listen on for commands. Defaults to 5000.
+            conf_thresh (float): Confidence threshold for detections (0.0-1.0).
+            nms_thresh (float): NMS threshold for detections (0.0-1.0).
+            port (int, optional): Port to listen on for commands. Not currently used. Defaults to 5000.
             show_labels (bool, optional): Whether to show labels on detections. Defaults to True.
             show_conf (bool, optional): Whether to show confidence values on detections. Defaults to True.
             output_dir (str, optional): User-specified output subdirectory. Defaults to None.
@@ -677,54 +718,51 @@ class YOLOv5Server:
     
     def _process_commands(self):
         """
-        Process commands from user input.
+        Process user commands from the command-line interface.
+        
+        This method implements an interactive loop that accepts and processes the following commands:
+        - "--image <path>": Process a single image file
+        - "--folder <path>": Process all images in a directory
+        - "quit", "exit", "q": Exit the server
+        
+        The method continues running until self.running is set to False,
+        either by a quit command or by an external signal.
         """
         while self.running:
             try:
                 # Get command from user
                 command = input("> ").strip().lower()
                 
-                if command.startswith("image"):
-                    # Parse command like: image --image path/to/img.jpg
+                # Process command
+                if command.startswith("--image"):
+                    # Parse command like: --image path/to/img.jpg
                     args = command.split()
                     
-                    # Check for empty command or missing arguments
-                    if len(args) < 3:
+                    # Check for missing image path
+                    if len(args) < 2:
                         continue
                     
-                    # Find the image path
-                    try:
-                        img_index = args.index("--image") + 1
-                        if img_index >= len(args):
-                            continue
-                        image_path = args[img_index]
-                        
-                        # Process the image
-                        self._process_single_image(image_path)
-                    except ValueError:
-                        pass
+                    # Get the image path (everything after --image)
+                    image_path = args[1]
                     
-                elif command.startswith("folder"):
-                    # Parse command like: folder --folder path/to/folder
+                    # Process the image
+                    self._process_single_image(image_path)
+                    
+                elif command.startswith("--folder"):
+                    # Parse command like: --folder path/to/folder
                     args = command.split()
                     
-                    # Check for empty command or missing arguments
-                    if len(args) < 3:
+                    # Check for missing folder path
+                    if len(args) < 2:
                         continue
                     
-                    # Find the folder path
-                    try:
-                        folder_index = args.index("--folder") + 1
-                        if folder_index >= len(args):
-                            continue
-                        folder_path = args[folder_index]
-                        
-                        # Process the folder
-                        self._process_folder(folder_path)
-                    except ValueError:
-                        pass
+                    # Get the folder path (everything after --folder)
+                    folder_path = args[1]
                     
-                elif command == "quit":
+                    # Process the folder
+                    self._process_folder(folder_path)
+                    
+                elif command == "quit" or command == "exit" or command == "q":
                     self.running = False
                 else:
                     pass
@@ -813,6 +851,27 @@ class YOLOv5Server:
 def main():
     """
     Main entry point for the YOLOv5 TensorRT Inference Server.
+    
+    This function:
+    1. Parses command-line arguments
+    2. Initializes the server with the specified parameters
+    3. Starts the command processing loop
+    4. Ensures proper cleanup on exit
+    
+    Command-line arguments:
+    - --engine: Path to TensorRT engine file (required)
+    - --labels: Path to YAML file containing class labels (required)
+    - --input_shape: Input shape as comma-separated values (default: 1,3,1280,1280)
+    - --output_shape: Output shape as comma-separated values (default: 1,100800,15)
+    - --conf_thresh: Confidence threshold (default: 0.25)
+    - --nms_thresh: NMS threshold (default: 0.45)
+    - --port: Port for communication (default: 5000)
+    - --hide_labels: Hide class labels on detections (flag)
+    - --hide_conf: Hide confidence values on detections (flag)
+    - --output_dir: Output subdirectory name (optional)
+    
+    Returns:
+        int: Exit code (0 for success, 1 for error)
     """
     # Set up command line argument parser
     parser = argparse.ArgumentParser(description='YOLOv5 TensorRT Inference Server')
