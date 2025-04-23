@@ -1,5 +1,0 @@
-mkdir yolov5_env && echo Directory_Created && tar -xzf yolov5_env.tar.gz -C yolov5_env && echo Unzipped_Directory && yolov5_env/Scripts/conda-unpack.exe && echo Unpacking_Done
-
-
-C:\Users\k5906\Desktop\Kaushal\test-software-ai-automatic-cleaning-machine\yolov5_env\tcl\tix8.4.3\pref\Blue.cs
-C:\Users\k5906\Desktop\Kaushal\test-software-ai-automatic-cleaning-machine\yolov5_env\tcl\tix8.4.3\pref\WmDefault.cs
