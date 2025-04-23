@@ -10,6 +10,11 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.IO.Compression;
 using System.Threading;
+using SharpCompress.Common;
+using SharpCompress.Readers;
+using SharpCompress.Archives;
+using SharpCompress.Archives.Tar;
+using System.Text;
 
 namespace Test_Software_AI_Automatic_Cleaning_Machine
 {
@@ -46,6 +51,16 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         public Form1()
         {
             InitializeComponent();
+
+            // Extract yolov5_env.tar.gz if needed before initializing the detection service
+            bool extractionSuccess = ExtractEnvironmentIfNeeded();
+            if (!extractionSuccess)
+            {
+                MessageBox.Show("Failed to set up the Python environment. The application will now close.",
+                    "Environment Setup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Environment.Exit(1);
+                return;
+            }
 
             // Initialize the detection service
             _detectionService = new YoloDetectionService(AppDomain.CurrentDomain.BaseDirectory);
@@ -128,13 +143,48 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             this.Text = "YOLOv5 Object Detection Tool";
             this.Size = new System.Drawing.Size(1366, 768);
             this.Font = regularFont;
+            
+            // Display Python environment information
+            string pythonPath = _detectionService.GetPythonPath();
+            bool isPortable = _detectionService.IsPortableEnvironmentAvailable;
+            
+            // Add diagnostic information
+            Console.WriteLine($"Python path: {pythonPath}");
+            Console.WriteLine($"Python exists: {File.Exists(pythonPath)}");
+            Console.WriteLine($"Working directory: {AppDomain.CurrentDomain.BaseDirectory}");
+            
+            if (isPortable)
+            {
+                Console.WriteLine($"Using portable Python environment: {pythonPath}");
+                this.Text += " (Portable Python)";
+            }
+            else
+            {
+                Console.WriteLine($"Using system Python environment: {pythonPath}");
+                this.Text += " (System Python)";
+            }
         }
 
         private bool SetupRequiredDependencies()
         {
             try
             {
-                // Verify all dependencies are available
+                // Check if portable environment is available
+                bool isPortable = _detectionService.IsPortableEnvironmentAvailable;
+                if (!isPortable)
+                {
+                    MessageBox.Show(
+                        "Portable Python environment not found.\n\n" +
+                        "This application requires the 'yolov5_env' folder with a portable Python environment.\n\n" +
+                        "Please ensure the 'yolov5_env' folder is in the same directory as the application.",
+                        "Missing Required Environment",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                    return false;
+                }
+
+                // Verify all other dependencies are available
                 string errorMessage;
                 if (!_detectionService.VerifyDependencies(out errorMessage))
                 {
@@ -656,7 +706,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 outputImage.Dispose();
                 outputImage = null;
             }
-            
+
             try
             {
                 // Construct the path to the output image
@@ -671,7 +721,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     
                     // Display the output image
                     outputPictureBox.Image = outputImage;
-                    outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
                     outputPictureBox.Refresh();
                     
                     // Update the output image label
@@ -681,9 +731,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 {
                     // If output image doesn't exist, show input image instead
                     outputPictureBox.Image = inputImage;
-                    outputPictureBox.Refresh();
+                outputPictureBox.Refresh();
                     outputImageLabel.Text = "Output Image Not Found";
-                    
+
                     Console.WriteLine($"Output image not found at: {outputImagePath}");
                 }
             }
@@ -743,10 +793,25 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     return;
                 }
                 
+                // Verify Python exists
+                string pythonPath = _detectionService.GetPythonPath();
+                if (!File.Exists(pythonPath))
+                {
+                    MessageBox.Show($"Python executable not found: {pythonPath}\nPlease ensure the yolov5_env is properly extracted.", 
+                        "Python Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ResetServerButtonState();
+                    return;
+                }
+                
+                // Add more diagnostic logging
+                Console.WriteLine($"Starting server with Python: {pythonPath}");
+                Console.WriteLine($"Python exists: {File.Exists(pythonPath)}");
+                Console.WriteLine($"Engine path: {enginePath}");
+                Console.WriteLine($"Labels path: {labelsPath}");
+                
                 // Start the detection server
                 string errorMessage;
                 bool success = _detectionService.StartServer(
-                    "python",
                     engineFile,
                     labelsFile,
                     imageResolutionHorizontalTextBox.Text,
@@ -945,6 +1010,505 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 this.Cursor = Cursors.Default;
                 startDetectionButton.Enabled = true;
                 startDetectionButton.Text = "► Start Detection";
+            }
+        }
+
+        /// <summary>
+        /// Extracts the embedded yolov5_env.tar.gz file if the yolov5_env directory doesn't exist
+        /// </summary>
+        /// <returns>True if extraction succeeded or the directory already exists, false otherwise</returns>
+        private bool ExtractEnvironmentIfNeeded()
+        {
+            try
+            {
+                string basePath = AppDomain.CurrentDomain.BaseDirectory;
+                string envDirPath = Path.Combine(basePath, "yolov5_env");
+
+                // Check if the environment directory already exists
+                if (Directory.Exists(envDirPath) && File.Exists(Path.Combine(envDirPath, "python.exe")))
+                {
+                    Console.WriteLine("yolov5_env directory already exists, skipping extraction.");
+                    return true;
+                }
+
+                // Create and show a progress form
+                Form progressForm = new Form
+                {
+                    Text = "Extracting Python Environment",
+                    Size = new Size(400, 150),
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    StartPosition = FormStartPosition.CenterScreen,
+                    MaximizeBox = false,
+                    MinimizeBox = false,
+                    ControlBox = false
+                };
+
+                Label statusLabel = new Label
+                {
+                    Text = "Extracting portable Python environment...\nThis may take a few minutes.",
+                    AutoSize = false,
+                    Size = new Size(360, 50),
+                    Location = new Point(20, 20),
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+
+                ProgressBar progressBar = new ProgressBar
+                {
+                    Style = ProgressBarStyle.Marquee,
+                    MarqueeAnimationSpeed = 30,
+                    Size = new Size(360, 23),
+                    Location = new Point(20, 70)
+                };
+
+                progressForm.Controls.Add(statusLabel);
+                progressForm.Controls.Add(progressBar);
+                
+                // Create a background thread for extraction
+                bool extractionResult = false;
+                Thread extractionThread = new Thread(() =>
+                {
+                    try
+                    {
+                        extractionResult = PerformExtraction(basePath, envDirPath, statusLabel);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Extraction error: {ex.Message}");
+                        extractionResult = false;
+                    }
+                    finally
+                    {
+                        // Close the progress form
+                        progressForm.Invoke((System.Windows.Forms.MethodInvoker)delegate
+                        {
+                            progressForm.Close();
+                        });
+                    }
+                });
+                
+                extractionThread.Start();
+                progressForm.ShowDialog(); // This will block until the form is closed
+                extractionThread.Join(); // Wait for the thread to finish
+
+                return extractionResult;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error extracting environment: {ex.Message}");
+                return false;
+            }
+        }
+
+        private bool PerformExtraction(string basePath, string envDirPath, Label statusLabel)
+        {
+            try
+            {
+                // Update status
+                UpdateStatus(statusLabel, "Looking for Python environment package...");
+                
+                // First check if the environment already exists
+                if (Directory.Exists(envDirPath) && File.Exists(Path.Combine(envDirPath, "python.exe")))
+                {
+                    MessageBox.Show($"Python environment already exists at {envDirPath}. Using existing installation.",
+                        "Environment Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return true;
+                }
+                
+                MessageBox.Show("yolov5_env directory not found or missing python.exe, attempting to extract from tar.gz file...",
+                    "Extraction Needed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Look for the tar.gz file in the application directory
+                string tarGzFilePath = Path.Combine(basePath, "yolov5_env.tar.gz");
+                
+                // Check if the file exists
+                if (!File.Exists(tarGzFilePath))
+                {
+                    MessageBox.Show($"Error: yolov5_env.tar.gz not found at {tarGzFilePath}. Please make sure the file is in the application directory.",
+                        "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    UpdateStatus(statusLabel, "Error: Python environment package not found. Make sure yolov5_env.tar.gz is in the application directory.");
+                    return false;
+                }
+                
+                MessageBox.Show($"Found yolov5_env.tar.gz at: {tarGzFilePath}. Proceeding with extraction.",
+                    "Package Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                UpdateStatus(statusLabel, "Found Python environment package. Preparing for extraction...");
+
+                try
+                {
+                    // Extract using SharpCompress
+                    UpdateStatus(statusLabel, "Extracting Python environment (this may take a few minutes)...");
+                    
+                    // Create the target directory for extraction if it doesn't exist
+                    if (!Directory.Exists(envDirPath))
+                    {
+                        Directory.CreateDirectory(envDirPath);
+                    }
+                    
+                    // Extract the tar.gz file directly into the yolov5_env folder
+                    ExtractTarGzWithSharpCompress(tarGzFilePath, envDirPath, statusLabel);
+                    
+                    // Verify extraction was successful - only check the main Python path
+                    string pythonPath = Path.Combine(envDirPath, "python.exe");
+                    if (File.Exists(pythonPath))
+                    {
+                        UpdateStatus(statusLabel, "Running conda-unpack to finalize the environment...");
+                        MessageBox.Show($"Python executable found at: {pythonPath}. Running conda-unpack...",
+                            "Python Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        
+                        // Run conda-unpack to make the environment relocatable
+                        bool unpackSuccess = RunCondaUnpack(envDirPath, statusLabel);
+                        
+                        if (unpackSuccess)
+                        {
+                            UpdateStatus(statusLabel, "Successfully extracted and unpacked Python environment.");
+                            MessageBox.Show("Successfully extracted and unpacked yolov5_env.",
+                                "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return true;
+                        }
+                        else
+                        {
+                            UpdateStatus(statusLabel, "Failed to unpack the conda environment.");
+                            MessageBox.Show("Failed to unpack the conda environment. Please check the logs for details.",
+                                "Unpack Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        // List directory contents for debugging
+                        string directoryContents = GetDirectoryContents(envDirPath);
+                        MessageBox.Show($"Error: Python executable not found at {pythonPath}. Directory contents:\n\n{directoryContents}",
+                            "Python Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        
+                        UpdateStatus(statusLabel, "Error: Python environment not properly extracted. Python executable not found.");
+                        return false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatus(statusLabel, $"Error during extraction: {ex.Message}");
+                    MessageBox.Show($"Error during extraction: {ex.Message}",
+                        "Extraction Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus(statusLabel, $"Error: {ex.Message}");
+                MessageBox.Show($"Error extracting environment: {ex.Message}",
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Run conda-unpack to make the conda environment relocatable by
+        /// converting absolute paths to relative paths
+        /// </summary>
+        private bool RunCondaUnpack(string envDirPath, Label statusLabel)
+        {
+            try
+            {
+                // Check for conda-unpack.exe in the Scripts directory
+                string condaUnpackPath = Path.Combine(envDirPath, "Scripts", "conda-unpack.exe");
+                
+                // Verify conda-unpack.exe exists
+                if (!File.Exists(condaUnpackPath))
+                {
+                    MessageBox.Show($"Error: conda-unpack.exe not found at {condaUnpackPath}",
+                        "Conda-Unpack Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    UpdateStatus(statusLabel, "Error: conda-unpack tool not found in the environment.");
+                    
+                    // Show directory contents for debugging
+                    string directoryContents = GetDirectoryContents(envDirPath);
+                    MessageBox.Show($"Directory contents of {envDirPath}:\n\n{directoryContents}",
+                        "Directory Contents", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    
+                    return false;
+                }
+                
+                MessageBox.Show($"Found conda-unpack at: {condaUnpackPath}. Running now...",
+                    "Conda-Unpack Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                
+                // Create process to run conda-unpack
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = condaUnpackPath,
+                    WorkingDirectory = envDirPath,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                
+                using (Process process = new Process { StartInfo = startInfo })
+                {
+                    // Track detailed progress
+                    StringBuilder outputBuilder = new StringBuilder();
+                    StringBuilder errorBuilder = new StringBuilder();
+                    
+                    process.OutputDataReceived += (sender, e) => 
+                    { 
+                        if (!string.IsNullOrEmpty(e.Data)) 
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                            UpdateStatus(statusLabel, $"Unpacking: {e.Data}");
+                        }
+                    };
+                    
+                    process.ErrorDataReceived += (sender, e) => 
+                    { 
+                        if (!string.IsNullOrEmpty(e.Data)) 
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                        }
+                    };
+                    
+                    // Start the process
+                    UpdateStatus(statusLabel, "Running conda-unpack to fix paths...");
+                    process.Start();
+                    
+                    // Begin async reading
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    
+                    // Wait for process completion (with timeout)
+                    bool completed = process.WaitForExit(300000); // 5 minute timeout
+                    
+                    if (!completed)
+                    {
+                        // Process timed out
+                        try 
+                        { 
+                            process.Kill(); 
+                        } 
+                        catch 
+                        { 
+                            // Ignore errors on kill 
+                        }
+                        
+                        UpdateStatus(statusLabel, "Error: conda-unpack timed out after 5 minutes.");
+                        MessageBox.Show("Error: conda-unpack timed out after 5 minutes.",
+                            "Timeout Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return false;
+                    }
+                    
+                    // Check for success
+                    if (process.ExitCode == 0)
+                    {
+                        UpdateStatus(statusLabel, "Successfully unpacked the conda environment.");
+                        MessageBox.Show("Successfully unpacked the conda environment.",
+                            "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return true;
+                    }
+                    else
+                    {
+                        string errorOutput = errorBuilder.ToString();
+                        UpdateStatus(statusLabel, "Error running conda-unpack.");
+                        MessageBox.Show($"conda-unpack failed with exit code {process.ExitCode}.\nError output: {errorOutput}",
+                            "Unpack Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus(statusLabel, $"Error running conda-unpack: {ex.Message}");
+                MessageBox.Show($"Error running conda-unpack: {ex.Message}",
+                    "Unpack Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Gets directory contents as a string for display in MessageBox
+        /// </summary>
+        private string GetDirectoryContents(string directoryPath, int maxFiles = 20)
+        {
+            StringBuilder sb = new StringBuilder();
+            
+            if (!Directory.Exists(directoryPath))
+            {
+                return $"Directory not found: {directoryPath}";
+            }
+
+            try
+            {
+                // List files in the root directory
+                string[] files = Directory.GetFiles(directoryPath);
+                sb.AppendLine($"Files in {directoryPath} ({Math.Min(files.Length, maxFiles)} of {files.Length} shown):");
+                
+                foreach (var file in files.Take(maxFiles))
+                {
+                    sb.AppendLine($"- {Path.GetFileName(file)}");
+                }
+                
+                if (files.Length > maxFiles)
+                {
+                    sb.AppendLine($"... and {files.Length - maxFiles} more files");
+                }
+                
+                // List subdirectories
+                string[] dirs = Directory.GetDirectories(directoryPath);
+                sb.AppendLine($"\nSubdirectories in {directoryPath}:");
+                
+                foreach (var dir in dirs)
+                {
+                    string dirName = Path.GetFileName(dir);
+                    bool hasPython = File.Exists(Path.Combine(dir, "python.exe"));
+                    sb.AppendLine($"- {dirName}" + (hasPython ? " (contains python.exe)" : ""));
+                }
+                
+                // Check Scripts directory specifically if it exists
+                string scriptsDir = Path.Combine(directoryPath, "Scripts");
+                if (Directory.Exists(scriptsDir))
+                {
+                    sb.AppendLine($"\nContents of Scripts directory:");
+                    string[] scriptFiles = Directory.GetFiles(scriptsDir).Take(maxFiles).ToArray();
+                    
+                    foreach (var file in scriptFiles)
+                    {
+                        sb.AppendLine($"- Scripts/{Path.GetFileName(file)}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"Error listing directory: {ex.Message}");
+            }
+            
+            return sb.ToString();
+        }
+
+        private void ExtractTarGzWithSharpCompress(string tarGzFilePath, string destinationPath, Label statusLabel)
+        {
+            try
+            {
+                UpdateStatus(statusLabel, "Opening archive...");
+                
+                // Open the tar.gz file
+                using (var tarGzStream = File.OpenRead(tarGzFilePath))
+                {
+                    // Create a reader for the archive
+                    using (var reader = ReaderFactory.Open(tarGzStream, new ReaderOptions { 
+                        ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 },
+                        LeaveStreamOpen = false
+                    }))
+                    {
+                        // Count total entries for progress reporting (optional)
+                        long totalEntries = 0;
+                        try
+                        {
+                            using (var tempArchive = ArchiveFactory.Open(tarGzFilePath, new ReaderOptions { 
+                                ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 } 
+                            }))
+                            {
+                                totalEntries = tempArchive.Entries.Count();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // If we can't count entries, just proceed without detailed progress
+                            Console.WriteLine($"Warning: Could not count entries: {ex.Message}");
+                            totalEntries = 1000; // Assume a large number
+                        }
+                        
+                        // Extract each entry
+                        long currentEntry = 0;
+                        while (reader.MoveToNextEntry())
+                        {
+                            currentEntry++;
+                            
+                            try
+                            {
+                                // Skip entries with null keys
+                                if (string.IsNullOrEmpty(reader.Entry.Key))
+                                {
+                                    Console.WriteLine("Warning: Skipping entry with null key");
+                                    continue;
+                                }
+                                
+                                // Report progress periodically
+                                if (currentEntry % 100 == 0 || currentEntry == 1)
+                                {
+                                    double progressPercent = Math.Min(100, (double)currentEntry / totalEntries * 100);
+                                    UpdateStatus(statusLabel, $"Extracting files... ({progressPercent:0}%)");
+                                }
+                                
+                                // Normalize the entry key to handle various archive formats
+                                string entryKey = reader.Entry.Key.Replace('\\', '/').TrimStart('/');
+                                
+                                // Handle entry path cleanup - skip any parent directory references
+                                if (entryKey.StartsWith("..") || entryKey.Contains("/../") || entryKey.Contains("/./"))
+                                {
+                                    Console.WriteLine($"Warning: Skipping potentially unsafe path: {entryKey}");
+                                    continue;
+                                }
+                                
+                                // Get the full path for the entry
+                                string entryPath = Path.Combine(destinationPath, entryKey);
+                                
+                                // Handle directory entries
+                                if (reader.Entry.IsDirectory)
+                                {
+                                    if (!Directory.Exists(entryPath))
+                                    {
+                                        Directory.CreateDirectory(entryPath);
+                                    }
+                                    continue;
+                                }
+                                
+                                // For file entries, create the containing directory if needed
+                                string directoryPath = Path.GetDirectoryName(entryPath);
+                                if (directoryPath != null && !Directory.Exists(directoryPath))
+                                {
+                                    Directory.CreateDirectory(directoryPath);
+                                }
+                                
+                                // Extract the file
+                                using (var entryStream = File.Create(entryPath))
+                                {
+                                    reader.WriteEntryTo(entryStream);
+                                }
+                                
+                                // Set the file's last write time if available
+                                if (reader.Entry.LastModifiedTime.HasValue)
+                                {
+                                    File.SetLastWriteTime(entryPath, reader.Entry.LastModifiedTime.Value);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // Log the error but continue with the next entry
+                                Console.WriteLine($"Warning: Error extracting entry {reader.Entry.Key}: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                
+                UpdateStatus(statusLabel, "Extraction completed successfully.");
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus(statusLabel, $"Error in SharpCompress extraction: {ex.Message}");
+                throw; // Re-throw to be handled by caller
+            }
+        }
+
+        private void UpdateStatus(Label statusLabel, string message)
+        {
+            if (statusLabel.InvokeRequired)
+            {
+                statusLabel.Invoke((System.Windows.Forms.MethodInvoker)delegate
+                {
+                    statusLabel.Text = message;
+                    Application.DoEvents();
+                });
+            }
+            else
+            {
+                statusLabel.Text = message;
+                Application.DoEvents();
             }
         }
     }

@@ -5,21 +5,54 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
+using System.Windows.Forms;
 
 namespace Test_Software_AI_Automatic_Cleaning_Machine
 {
     public class YoloDetectionService
     {
-        private readonly string _assetsPath, _scriptPath;
+        private readonly string _assetsPath, _scriptPath, _pythonPath;
         private Process _serverProcess;
         private bool _isServerRunning = false;
         private bool _isProcessingDetection = false;
         private string _tempDirectory = null;
+        private bool _portableEnvironmentAvailable = false;
 
         public YoloDetectionService(string basePath)
         {
             _assetsPath = Path.Combine(basePath, "Models");
             _scriptPath = Path.Combine(basePath, "detect_trt_server.py");
+            
+            // Check for portable Python environment
+            string portablePythonPath = Path.Combine(basePath, "yolov5_env", "python.exe");
+            
+            // Log the path we're checking
+            MessageBox.Show($"Checking for Python at: {portablePythonPath}", "Python Path Check", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            
+            // Check if portable Python environment exists
+            if (File.Exists(portablePythonPath))
+            {
+                _pythonPath = portablePythonPath;
+                _portableEnvironmentAvailable = true;
+                MessageBox.Show("Portable Python environment found and will be used.", "Python Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                // No fallback - portable environment is required
+                _pythonPath = portablePythonPath; // Still set the path even though it doesn't exist
+                _portableEnvironmentAvailable = false;
+                MessageBox.Show("ERROR: Portable Python environment not found at: " + portablePythonPath, "Python Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                
+                // Check if the directory exists but python.exe is missing
+                string envDir = Path.Combine(basePath, "yolov5_env");
+                if (Directory.Exists(envDir))
+                {
+                    string dirContents = GetDirectoryContents(envDir);
+                    MessageBox.Show($"yolov5_env directory exists but python.exe not found. Directory contents:\n\n{dirContents}", 
+                        "Python Missing", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
             
             // Create a temporary directory for file operations
             _tempDirectory = Path.Combine(basePath, "Temp");
@@ -31,12 +64,21 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
         public string GetAssetsPath() => _assetsPath;
         public string GetScriptPath() => _scriptPath;
+        public string GetPythonPath() => _pythonPath;
         public bool IsServerRunning => _isServerRunning;
+        public bool IsPortableEnvironmentAvailable => _portableEnvironmentAvailable;
 
         // Returns true if detect_trt_server.py and models are available
         public bool VerifyDependencies(out string errorMessage)
         {
             errorMessage = string.Empty;
+
+            // First verify portable Python environment
+            if (!_portableEnvironmentAvailable)
+            {
+                errorMessage = $"Portable Python environment not found at: {_pythonPath}\nPlease ensure the yolov5_env folder is included with the application.";
+                return false;
+            }
 
             // Verify Assets directory exists
             if (!Directory.Exists(_assetsPath))
@@ -73,9 +115,68 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             return true;
         }
 
+        /// <summary>
+        /// Gets directory contents as a string for display in MessageBox
+        /// </summary>
+        private string GetDirectoryContents(string directoryPath, int maxFiles = 20)
+        {
+            StringBuilder sb = new StringBuilder();
+            
+            if (!Directory.Exists(directoryPath))
+            {
+                return $"Directory not found: {directoryPath}";
+            }
+
+            try
+            {
+                // List files in the root directory
+                string[] files = Directory.GetFiles(directoryPath);
+                sb.AppendLine($"Files in {directoryPath} ({Math.Min(files.Length, maxFiles)} of {files.Length} shown):");
+                
+                foreach (var file in files.Take(maxFiles))
+                {
+                    sb.AppendLine($"- {Path.GetFileName(file)}");
+                }
+                
+                if (files.Length > maxFiles)
+                {
+                    sb.AppendLine($"... and {files.Length - maxFiles} more files");
+                }
+                
+                // List subdirectories
+                string[] dirs = Directory.GetDirectories(directoryPath);
+                sb.AppendLine($"\nSubdirectories in {directoryPath}:");
+                
+                foreach (var dir in dirs)
+                {
+                    string dirName = Path.GetFileName(dir);
+                    bool hasPython = File.Exists(Path.Combine(dir, "python.exe"));
+                    sb.AppendLine($"- {dirName}" + (hasPython ? " (contains python.exe)" : ""));
+                }
+                
+                // Check Scripts directory specifically if it exists
+                string scriptsDir = Path.Combine(directoryPath, "Scripts");
+                if (Directory.Exists(scriptsDir))
+                {
+                    sb.AppendLine($"\nContents of Scripts directory:");
+                    string[] scriptFiles = Directory.GetFiles(scriptsDir).Take(maxFiles).ToArray();
+                    
+                    foreach (var file in scriptFiles)
+                    {
+                        sb.AppendLine($"- Scripts/{Path.GetFileName(file)}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"Error listing directory: {ex.Message}");
+            }
+            
+            return sb.ToString();
+        }
+
         // Start detection server
         public bool StartServer(
-            string pythonPath,
             string engineFile,
             string yamlFile,
             string horizontalResolution,
@@ -95,6 +196,29 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     errorMessage = "Server is already running.";
                     return false;
                 }
+                
+                // Verify portable environment is available
+                if (!_portableEnvironmentAvailable)
+                {
+                    errorMessage = "Portable Python environment is required but not available.";
+                    return false;
+                }
+                
+                // Double-check that Python exists - using only verified paths
+                if (!File.Exists(_pythonPath))
+                {
+                    errorMessage = $"Python executable not found at {_pythonPath}";
+                    MessageBox.Show($"Python executable not found at: {_pythonPath}", "Python Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
+                
+                // Double-check that the script exists
+                if (!File.Exists(_scriptPath))
+                {
+                    errorMessage = $"Detection script not found at {_scriptPath}";
+                    MessageBox.Show($"Detection script not found at: {_scriptPath}", "Script Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
 
                 // Build the command parameters for starting the server
                 string enginePath = Path.Combine(_assetsPath, engineFile);
@@ -104,9 +228,38 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 enginePath = enginePath.Replace('\\', '/');
                 labelsPath = labelsPath.Replace('\\', '/');
                 
-                // Create the complete command with conda environment activation
-                string condaActivateCmd = $"call activate yolov5";
-                string serverCommand = $"{pythonPath} \"{_scriptPath.Replace('\\', '/')}\" --engine \"{enginePath}\" --labels \"{labelsPath}\" --input_shape 1,3,{horizontalResolution},{verticalResolution} --output_shape 1,100800,15 --conf_thresh {confidenceThreshold} --nms_thresh {iouThreshold} --output_dir \"{projectName}\"";
+                // Create the output directory if it doesn't exist
+                string detectionsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Detections");
+                string projectDir = Path.Combine(detectionsDir, projectName);
+                
+                if (!Directory.Exists(detectionsDir))
+                {
+                    try 
+                    { 
+                        Directory.CreateDirectory(detectionsDir);
+                        MessageBox.Show($"Created Detections directory: {detectionsDir}", "Directory Created", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error creating Detections directory: {ex.Message}", "Directory Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                
+                if (!Directory.Exists(projectDir))
+                {
+                    try 
+                    { 
+                        Directory.CreateDirectory(projectDir);
+                        MessageBox.Show($"Created project directory: {projectDir}", "Directory Created", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error creating project directory: {ex.Message}", "Directory Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                
+                // Create the command for the server using the portable Python executable
+                string serverCommand = $"\"{_pythonPath}\" \"{_scriptPath.Replace('\\', '/')}\" --engine \"{enginePath}\" --labels \"{labelsPath}\" --input_shape 1,3,{horizontalResolution},{verticalResolution} --output_shape 1,100800,15 --conf_thresh {confidenceThreshold} --nms_thresh {iouThreshold} --output_dir \"{projectName}\"";
                 
                 // Add optional parameters
                 if (hideLabels)
@@ -114,17 +267,15 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 
                 if (hideConfidence)
                     serverCommand += " --hide_conf";
-                
-                string completeCommand = $"{condaActivateCmd} && {serverCommand}";
 
                 // Debug logging - log the exact command being executed
-                Console.WriteLine($"Executing command: {completeCommand}");
+                MessageBox.Show($"Executing command:\n{serverCommand}", "Server Command", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 
                 // Configure process start info to hide the window
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = $"/k {completeCommand}",
+                    Arguments = $"/k {serverCommand}",
                     UseShellExecute = false,
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,
@@ -152,7 +303,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             catch (Exception ex)
             {
                 errorMessage = $"Error starting server: {ex.Message}";
-                Console.WriteLine($"Exception in StartServer: {ex}");
+                MessageBox.Show($"Exception in StartServer: {ex}", "Server Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
@@ -173,6 +324,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 if (e.Data.Contains("Error:") || e.Data.Contains("Exception:") || 
                     e.Data.Contains("error:") || e.Data.Contains("Failed to"))
                 {
+                    // Don't show MessageBox for every server output - it would be too many dialogs
                     Console.WriteLine($"Detected error in server output: {e.Data}");
                 }
                 

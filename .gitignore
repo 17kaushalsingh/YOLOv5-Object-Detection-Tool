@@ -141,3 +141,7 @@ node_modules/
 
 # Zip files
 *.zip
+*.tar.gz
+
+# Conda environment
+yolov5_env/
