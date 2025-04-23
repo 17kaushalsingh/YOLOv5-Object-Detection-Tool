@@ -14,6 +14,7 @@ using SharpCompress.Readers;
 using SharpCompress.Archives;
 using SharpCompress.Archives.Tar;
 using System.Text;
+using Test_Software_AI_Automatic_Cleaning_Machine;
 
 namespace Test_Software_AI_Automatic_Cleaning_Machine
 {
@@ -103,37 +104,23 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         private void InitializeUIComponents()
         {
             // Create detection configuration group
-            detectionConfigGroupBox = CreateGroupBox("Detection Configuration", new Point(20, 20), new Size(400, 190));
-            InitializeDetectionConfigControls(detectionConfigGroupBox, regularFont);
+            detectionConfigGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Configuration", new Point(20, 20), new Size(400, 190), boldFont);
+            YoloApplicationUI.InitializeDetectionConfigControls(detectionConfigGroupBox, regularFont, ref selectWeightsFileLabel, ref selectLabelsFileLabel, ref selectWeightsFileComboBox, ref selectLabelsFileComboBox, ref selectImageButton, ref selectFolderButton, ref enableGpuCheckBox, selectImageButton_Click, selectFolderButton_Click);
 
             // Create detection parameters group
-            detectionParametersGroupBox = CreateGroupBox("Detection Parameters", new Point(20, 220), new Size(400, 120));
-            InitializeDetectionParametersControls(detectionParametersGroupBox, regularFont);
+            detectionParametersGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Parameters", new Point(20, 220), new Size(400, 120), boldFont);
+            YoloApplicationUI.InitializeDetectionParametersControls(detectionParametersGroupBox, regularFont, ref imageResolutionLabel, ref confidenceThresholdLabel, ref iouThresholdLabel, ref imageResolutionHorizontalTextBox, ref imageResolutionVerticalTextBox, ref confidenceThresholdTextBox, ref iouThresholdTextBox);
 
             // Create logging configuration group 
-            loggingConfigGroupBox = CreateGroupBox("Logging Configuration", new Point(20, 350), new Size(400, 120));
-            InitializeLoggingConfigurationControls(loggingConfigGroupBox, regularFont);
+            loggingConfigGroupBox = YoloApplicationUI.CreateGroupBox(this, "Logging Configuration", new Point(20, 350), new Size(400, 120), boldFont);
+            YoloApplicationUI.InitializeLoggingConfigurationControls(loggingConfigGroupBox, regularFont, ref projectNameLabel, ref projectNameTextBox, ref hideLabelCheckBox, ref hideConfidenceCheckBox);
 
             // Create server control buttons
-            CreateServerControlButtons();
+            YoloApplicationUI.CreateServerControlButtons(this, ref startServerButton, ref quitServerButton, ref startDetectionButton, startServerButton_Click, quitServerButton_Click, startDetectionButton_Click);
 
             // Create image panel group
-            imagePanelGroupBox = CreateGroupBox("Image Panel", new Point(440, 20), new Size(890, 590));
-            InitializeImagePanelControls(imagePanelGroupBox, boldFont);
-        }
-
-        private GroupBox CreateGroupBox(string text, Point location, Size size)
-        {
-            var groupBox = new GroupBox
-            {
-                Text = text,
-                Location = location,
-                Size = size,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left
-            };
-            groupBox.Font = boldFont;
-            Controls.Add(groupBox);
-            return groupBox;
+            imagePanelGroupBox = YoloApplicationUI.CreateGroupBox(this, "Image Panel", new Point(440, 20), new Size(890, 590), boldFont);
+            YoloApplicationUI.InitializeImagePanelControls(imagePanelGroupBox, boldFont, regularFont, ref inputImageLabel, ref outputImageLabel, ref inputPictureBox, ref outputPictureBox, ref previousButton, ref nextButton, previousButton_Click, nextButton_Click);
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -148,18 +135,19 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             bool isPortable = _detectionService.IsPortableEnvironmentAvailable;
             
             // Add diagnostic information
-            Console.WriteLine($"Python path: {pythonPath}");
-            Console.WriteLine($"Python exists: {File.Exists(pythonPath)}");
-            Console.WriteLine($"Working directory: {AppDomain.CurrentDomain.BaseDirectory}");
+            MessageBox.Show($"Python path: {pythonPath}\n" +
+                           $"Python exists: {File.Exists(pythonPath)}\n" +
+                           $"Working directory: {AppDomain.CurrentDomain.BaseDirectory}", 
+                           "Debug: Form_Load");
             
             if (isPortable)
             {
-                Console.WriteLine($"Using portable Python environment: {pythonPath}");
+                MessageBox.Show($"Using portable Python environment: {pythonPath}", "Portable Python Environment");
                 this.Text += " (Portable Python)";
             }
             else
             {
-                Console.WriteLine($"Using system Python environment: {pythonPath}");
+                MessageBox.Show($"Using system Python environment: {pythonPath}", "System Python Environment");
                 this.Text += " (System Python)";
             }
         }
@@ -170,6 +158,8 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             {
                 // Check if portable environment is available
                 bool isPortable = _detectionService.IsPortableEnvironmentAvailable;
+                MessageBox.Show($"SetupRequiredDependencies - IsPortableEnvironmentAvailable: {isPortable}", "Debug: Dependency Check");
+                
                 if (!isPortable)
                 {
                     MessageBox.Show(
@@ -184,6 +174,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 }
 
                 // Verify all other dependencies are available
+                MessageBox.Show("Now calling VerifyDependencies...", "Debug: Dependency Check");
                 string errorMessage;
                 if (!_detectionService.VerifyDependencies(out errorMessage))
                 {
@@ -191,6 +182,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     return false;
                 }
 
+                MessageBox.Show("All dependencies verified successfully!", "Debug: Dependency Check Success");
                 return true;
             }
             catch (Exception ex)
@@ -199,339 +191,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     "Setup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
-        }
-
-        private void InitializeDetectionConfigControls(GroupBox parentGroup, Font regularFont)
-        {
-            // Weights File Label
-            selectWeightsFileLabel = new Label
-            {
-                Text = "Select Weights File:",
-                Location = new Point(20, 30),
-                Size = new Size(150, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(selectWeightsFileLabel);
-
-            // Weights File ComboBox
-            selectWeightsFileComboBox = new ComboBox
-            {
-                Location = new Point(180, 30),
-                Size = new Size(200, 20),
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = regularFont
-            };
-            selectWeightsFileComboBox.Items.AddRange(new object[] {
-                "petris_yolov5x.pt",
-                "petris_yolov5x_fp16.engine",
-                "petris_yolov5x_fp32.engine"
-            });
-            selectWeightsFileComboBox.SelectedIndex = 2;
-            parentGroup.Controls.Add(selectWeightsFileComboBox);
-
-            // Labels File Label
-            selectLabelsFileLabel = new Label
-            {
-                Text = "Select Labels File:",
-                Location = new Point(20, 60),
-                Size = new Size(150, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(selectLabelsFileLabel);
-
-            // Labels File ComboBox
-            selectLabelsFileComboBox = new ComboBox
-            {
-                Location = new Point(180, 60),
-                Size = new Size(200, 20),
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = regularFont
-            };
-            selectLabelsFileComboBox.Items.AddRange(new object[] {
-                "petris_data.yaml"
-            });
-            selectLabelsFileComboBox.SelectedIndex = 0;
-            parentGroup.Controls.Add(selectLabelsFileComboBox);
-
-            // Select Image Button
-            selectImageButton = new Button
-            {
-                Text = "Select Image",
-                Location = new Point(20, 90),
-                Size = new Size(175, 30),
-                BackColor = Color.LightGray,
-                Font = regularFont
-            };
-            selectImageButton.Click += selectImageButton_Click;
-            parentGroup.Controls.Add(selectImageButton);
-            
-            // Select Folder Button
-            selectFolderButton = new Button
-            {
-                Text = "Select Folder",
-                Location = new Point(205, 90),
-                Size = new Size(175, 30),
-                BackColor = Color.LightGray,
-                Font = regularFont
-            };
-            selectFolderButton.Click += selectFolderButton_Click;
-            parentGroup.Controls.Add(selectFolderButton);
-
-            // Enable GPU CheckBox
-            enableGpuCheckBox = new CheckBox
-            {
-                Text = "Enable GPU",
-                Location = new Point(20, 130),
-                Size = new Size(150, 20),
-                Checked = true,
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(enableGpuCheckBox);
-        }
-
-        private void InitializeDetectionParametersControls(GroupBox parentGroup, Font regularFont)
-        {
-            // Image Resolution Label
-            imageResolutionLabel = new Label
-            {
-                Text = "Image Resolution:",
-                Location = new Point(20, 30),
-                Size = new Size(120, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(imageResolutionLabel);
-
-            // Horizontal Resolution TextBox
-            imageResolutionHorizontalTextBox = new TextBox
-            {
-                Text = "1280",
-                Location = new Point(150, 30),
-                Size = new Size(50, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(imageResolutionHorizontalTextBox);
-
-            // Resolution Separator Label
-            Label resolutionSeparatorLabel = new Label
-            {
-                Text = "×",
-                Location = new Point(205, 33),
-                Size = new Size(15, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(resolutionSeparatorLabel);
-
-            // Vertical Resolution TextBox
-            imageResolutionVerticalTextBox = new TextBox
-            {
-                Text = "1280",
-                Location = new Point(225, 30),
-                Size = new Size(50, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(imageResolutionVerticalTextBox);
-
-            // Confidence Threshold Label
-            confidenceThresholdLabel = new Label
-            {
-                Text = "Confidence Threshold:",
-                Location = new Point(20, 60),
-                Size = new Size(120, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(confidenceThresholdLabel);
-
-            // Confidence Threshold TextBox
-            confidenceThresholdTextBox = new TextBox
-            {
-                Text = "0.25",
-                Location = new Point(150, 60),
-                Size = new Size(60, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(confidenceThresholdTextBox);
-
-            // IOU Threshold Label
-            iouThresholdLabel = new Label
-            {
-                Text = "IOU Threshold:",
-                Location = new Point(20, 90),
-                Size = new Size(120, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(iouThresholdLabel);
-
-            // IOU Threshold TextBox
-            iouThresholdTextBox = new TextBox
-            {
-                Text = "0.45",
-                Location = new Point(150, 90),
-                Size = new Size(60, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(iouThresholdTextBox);
-        }
-
-        private void InitializeLoggingConfigurationControls(GroupBox parentGroup, Font regularFont)
-        {
-            // Project Name Label
-            projectNameLabel = new Label
-            {
-                Text = "Project Name:",
-                Location = new Point(20, 30),
-                Size = new Size(100, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(projectNameLabel);
-
-            // Project Name TextBox
-            projectNameTextBox = new TextBox
-            {
-                Text = "PETRIS_Test_Data",
-                Location = new Point(130, 30),
-                Size = new Size(250, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(projectNameTextBox);
-
-            // Hide Labels CheckBox
-            hideLabelCheckBox = new CheckBox
-            {
-                Text = "Hide Labels",
-                Location = new Point(20, 60),
-                Size = new Size(100, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(hideLabelCheckBox);
-
-            // Hide Confidence CheckBox
-            hideConfidenceCheckBox = new CheckBox
-            {
-                Text = "Hide Confidence",
-                Location = new Point(130, 60),
-                Size = new Size(120, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(hideConfidenceCheckBox);
-        }
-        
-        private void CreateServerControlButtons()
-        {
-            // Start Server Button
-            startServerButton = new Button
-            {
-                Text = "Start Server",
-                Location = new Point(20, 480),
-                Size = new Size(190, 40),
-                Font = new Font("Arial", 14, FontStyle.Bold),
-                BackColor = Color.LightGreen,
-                FlatStyle = FlatStyle.Flat,
-            };
-            startServerButton.FlatAppearance.BorderSize = 1;
-            startServerButton.FlatAppearance.BorderColor = Color.Black;
-            startServerButton.Click += startServerButton_Click;
-            Controls.Add(startServerButton);
-            
-            // Stop Server Button
-            quitServerButton = new Button
-            {
-                Text = "Stop Server",
-                Location = new Point(230, 480),
-                Size = new Size(190, 40),
-                Font = new Font("Arial", 14, FontStyle.Bold),
-                BackColor = Color.LightCoral,
-                FlatStyle = FlatStyle.Flat,
-                Enabled = false
-            };
-            quitServerButton.FlatAppearance.BorderSize = 1;
-            quitServerButton.FlatAppearance.BorderColor = Color.Black;
-            quitServerButton.Click += quitServerButton_Click;
-            Controls.Add(quitServerButton);
-            
-            // Start Detection Button
-            startDetectionButton = new Button
-            {
-                Text = "► Start Detection",
-                Location = new Point(20, 530),
-                Size = new Size(400, 40),
-                Font = new Font("Arial", 18, FontStyle.Bold),
-                BackColor = Color.LightBlue,
-                FlatStyle = FlatStyle.Flat,
-                Enabled = false
-            };
-            startDetectionButton.FlatAppearance.BorderSize = 1;
-            startDetectionButton.FlatAppearance.BorderColor = Color.Black;
-            startDetectionButton.Click += startDetectionButton_Click;
-            Controls.Add(startDetectionButton);
-        }
-
-        private void InitializeImagePanelControls(GroupBox parentGroup, Font boldFont)
-        {
-            // Input Image Label
-            inputImageLabel = new Label
-            {
-                Text = "Input Image",
-                Location = new Point(20, 25),
-                Size = new Size(300, 20),
-                Font = boldFont
-            };
-            parentGroup.Controls.Add(inputImageLabel);
-
-            // Input PictureBox
-            inputPictureBox = new PictureBox
-            {
-                Location = new Point(20, 50),
-                Size = new Size(410, 500),
-                BorderStyle = BorderStyle.FixedSingle,
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.WhiteSmoke
-            };
-            parentGroup.Controls.Add(inputPictureBox);
-
-            // Output Image Label
-            outputImageLabel = new Label
-            {
-                Text = "Output Image (Showing Input - Run Detection)",
-                Location = new Point(450, 25),
-                Size = new Size(400, 20),
-                Font = boldFont
-            };
-            parentGroup.Controls.Add(outputImageLabel);
-
-            // Output PictureBox
-            outputPictureBox = new PictureBox
-            {
-                Location = new Point(450, 50),
-                Size = new Size(410, 500),
-                BorderStyle = BorderStyle.FixedSingle,
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.WhiteSmoke
-            };
-            parentGroup.Controls.Add(outputPictureBox);
-            
-            // Previous Button
-            previousButton = new Button
-            {
-                Text = "◄ Previous",
-                Location = new Point(20, 560),
-                Size = new Size(200, 30),
-                Font = regularFont,
-                Enabled = false
-            };
-            previousButton.Click += previousButton_Click;
-            parentGroup.Controls.Add(previousButton);
-            
-            // Next Button
-            nextButton = new Button
-            {
-                Text = "Next ►",
-                Location = new Point(230, 560),
-                Size = new Size(200, 30),
-                Font = regularFont,
-                Enabled = false
-            };
-            nextButton.Click += nextButton_Click;
-            parentGroup.Controls.Add(nextButton);
         }
 
         private void selectImageButton_Click(object sender, EventArgs e)
@@ -710,35 +369,79 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             {
                 // Construct the path to the output image
                 string filename = Path.GetFileName(inputImagePath);
-                string outputImagePath = Path.Combine(_outputDirectory, filename);
                 
-                // Check if the output image exists
-                if (File.Exists(outputImagePath))
+                // Log the input image and expected output location
+                MessageBox.Show($"Input image: {inputImagePath}\nExpected output: {filename}", "Debug: Output Image Paths");
+                
+                // Try multiple possible output locations
+                List<string> possibleOutputPaths = new List<string>();
+                
+                // 1. Try the standard output directory
+                if (!string.IsNullOrEmpty(_outputDirectory))
+                {
+                    possibleOutputPaths.Add(Path.Combine(_outputDirectory, filename));
+                }
+                
+                // 2. Try with timestamp-based directories (they might be created by the Python script)
+                string detectionsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Detections");
+                if (Directory.Exists(detectionsDir))
+                {
+                    // Add all project directories that might contain the image
+                    foreach (var dir in Directory.GetDirectories(detectionsDir))
+                    {
+                        if (dir.Contains(projectNameTextBox.Text) || dir.Contains("results_"))
+                        {
+                            possibleOutputPaths.Add(Path.Combine(dir, filename));
+                        }
+                    }
+                }
+                
+                // Display all the paths we're going to check
+                string allPaths = string.Join("\n", possibleOutputPaths);
+                MessageBox.Show($"Checking these possible output paths:\n{allPaths}", "Debug: Possible Output Paths");
+                
+                // Try each possible path
+                string foundPath = null;
+                foreach (string path in possibleOutputPaths)
+                {
+                    if (File.Exists(path))
+                    {
+                        foundPath = path;
+                        break;
+                    }
+                }
+                
+                // If found, display the image
+                if (foundPath != null)
                 {
                     // Load the output image
-                    outputImage = Image.FromFile(outputImagePath);
+                    outputImage = Image.FromFile(foundPath);
                     
                     // Display the output image
                     outputPictureBox.Image = outputImage;
-                outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                    outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
                     outputPictureBox.Refresh();
                     
                     // Update the output image label
                     outputImageLabel.Text = $"Output Image: {filename}";
+                    
+                    // Update the output directory for future lookups
+                    _outputDirectory = Path.GetDirectoryName(foundPath);
+                    MessageBox.Show($"Updated output directory to: {_outputDirectory}", "Output Directory Updated");
                 }
                 else
                 {
                     // If output image doesn't exist, show input image instead
                     outputPictureBox.Image = inputImage;
-                outputPictureBox.Refresh();
+                    outputPictureBox.Refresh();
                     outputImageLabel.Text = "Output Image Not Found";
 
-                    Console.WriteLine($"Output image not found at: {outputImagePath}");
+                    MessageBox.Show($"Output image not found in any of the expected locations.", "Output Image Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error loading output image: {ex.Message}");
+                MessageBox.Show($"Error loading output image: {ex.Message}", "Output Image Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 outputPictureBox.Image = inputImage;
                 outputPictureBox.Refresh();
                 outputImageLabel.Text = "Error Loading Output Image";
@@ -803,10 +506,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 }
                 
                 // Add more diagnostic logging
-                Console.WriteLine($"Starting server with Python: {pythonPath}");
-                Console.WriteLine($"Python exists: {File.Exists(pythonPath)}");
-                Console.WriteLine($"Engine path: {enginePath}");
-                Console.WriteLine($"Labels path: {labelsPath}");
+                MessageBox.Show($"Starting server with Python: {pythonPath}\n" +
+                               $"Python exists: {File.Exists(pythonPath)}\n" +
+                               $"Engine path: {enginePath}\n" +
+                               $"Labels path: {labelsPath}", 
+                               "Debug: startServerButton_Click");
                 
                 // Start the detection server
                 string errorMessage;
@@ -833,6 +537,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     
                     // Lock configuration controls
                     EnableConfigControls(false);
+                    
+                    // Set the output directory for loading images
+                    string basePath = AppDomain.CurrentDomain.BaseDirectory;
+                    _outputDirectory = Path.Combine(basePath, "Detections", projectNameTextBox.Text);
+                    
+                    // Log the output directory
+                    MessageBox.Show($"Output directory set to: {_outputDirectory}", "Output Directory", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     
                     MessageBox.Show("YOLOv5 detection server started successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
@@ -933,75 +644,87 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     return;
                 }
                 
-                // Show a loading cursor
-                this.Cursor = Cursors.WaitCursor;
+                // Debug information
+                MessageBox.Show($"Starting detection for: {selectedPath}\n" +
+                               $"Is folder: {isFolder}", 
+                               "Debug: startDetectionButton_Click");
                 
-                // Disable detection button to prevent multiple requests
+                // Disable the start detection button during processing
                 startDetectionButton.Enabled = false;
-                startDetectionButton.Text = "Processing...";
-                Application.DoEvents(); // Refresh UI
                 
-                string errorMessage;
-                bool success;
-                
-                // Log detection starting
-                Console.WriteLine($"Starting detection for: {selectedPath}");
-                Console.WriteLine($"Is folder: {isFolder}");
-                
-                // Set output directory
-                _outputDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Detections", projectNameTextBox.Text);
-                
-                // Check if we're processing an image or folder
                 if (isFolder)
                 {
-                    // Process folder
-                    Console.WriteLine($"Attempting to detect folder: {selectedPath}");
-                    success = _detectionService.DetectFolder(selectedPath, out errorMessage);
+                    MessageBox.Show($"Attempting to detect folder: {selectedPath}", "Debug: Folder Detection");
+                    
+                    // Process folder detection
+                    string errorMessage;
+                    bool success = _detectionService.DetectFolder(selectedPath, out errorMessage);
                     
                     if (success)
                     {
-                        // Set detection completed flag
+                        // Detection started successfully
                         _detectionCompleted = true;
                         
-                        MessageBox.Show("Folder detection completed. Results saved in the Detections folder.", 
-                            "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // Update the output directory based on the project name
+                        UpdateOutputDirectory();
                         
-                        // Load the output image for the current image
-                        if (_imageFiles.Count > 0 && _currentImageIndex >= 0 && _currentImageIndex < _imageFiles.Count)
+                        // Update the output image after a small delay to allow processing
+                        Task.Delay(1000).ContinueWith(t =>
                         {
-                            LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
-                        }
+                            this.Invoke(new Action(() => {
+                                if (_currentImageIndex < _imageFiles.Count)
+                                {
+                                    LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
+                                }
+                            }));
+                        });
+                    }
+                    else 
+                    {
+                        // Detection failed
+                        MessageBox.Show(errorMessage, "Folder Detection Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show($"Detection failed: {errorMessage}", "Debug: Detection Error");
                     }
                 }
                 else
                 {
-                    // Process single image
-                    Console.WriteLine($"Attempting to detect image: {selectedPath}");
-                    success = _detectionService.DetectImage(selectedPath, out errorMessage);
+                    // Single image detection
+                    MessageBox.Show($"Attempting to detect image: {selectedPath}", "Debug: Image Detection");
+                    
+                    // Process image detection
+                    string errorMessage;
+                    bool success = _detectionService.DetectImage(selectedPath, out errorMessage);
                     
                     if (success)
                     {
-                        // Set detection completed flag
+                        // Detection started successfully
                         _detectionCompleted = true;
                         
-                        MessageBox.Show("Image detection completed. Results saved in the Detections folder.", 
-                            "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // Update the output directory based on the project name
+                        UpdateOutputDirectory();
                         
-                        // Load the output image
-                        LoadAndDisplayOutputImage(selectedPath);
+                        // Update the output image after a small delay to allow processing
+                        Task.Delay(1000).ContinueWith(t =>
+                        {
+                            this.Invoke(new Action(() => {
+                                if (_currentImageIndex < _imageFiles.Count)
+                                {
+                                    LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
+                                }
+                            }));
+                        });
                     }
-                }
-                
-                if (!success)
-                {
-                    Console.WriteLine($"Detection failed: {errorMessage}");
-                    MessageBox.Show($"Failed to start detection: {errorMessage}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    else 
+                    {
+                        // Detection failed
+                        MessageBox.Show(errorMessage, "Image Detection Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show($"Detection failed: {errorMessage}", "Debug: Detection Error");
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Exception in startDetectionButton_Click: {ex}");
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Exception in startDetectionButton_Click: {ex}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
@@ -1022,11 +745,23 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             {
                 string basePath = AppDomain.CurrentDomain.BaseDirectory;
                 string envDirPath = Path.Combine(basePath, "yolov5_env");
+                string pythonExePath = Path.Combine(envDirPath, "python.exe");
+
+                // Ensure paths are normalized
+                basePath = Path.GetFullPath(basePath);
+                envDirPath = Path.GetFullPath(envDirPath);
+                pythonExePath = Path.GetFullPath(pythonExePath);
+
+                MessageBox.Show($"Checking for Python at: {pythonExePath}\n" +
+                               $"Environment directory: {envDirPath}\n" +
+                               $"Directory exists: {Directory.Exists(envDirPath)}\n" +
+                               $"Python exists: {File.Exists(pythonExePath)}",
+                               "Debug: ExtractEnvironmentIfNeeded");
 
                 // Check if the environment directory already exists
-                if (Directory.Exists(envDirPath) && File.Exists(Path.Combine(envDirPath, "python.exe")))
+                if (Directory.Exists(envDirPath) && File.Exists(pythonExePath))
                 {
-                    Console.WriteLine("yolov5_env directory already exists, skipping extraction.");
+                    MessageBox.Show("yolov5_env directory already exists, skipping extraction.", "Environment Found");
                     return true;
                 }
 
@@ -1072,7 +807,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Extraction error: {ex.Message}");
+                        MessageBox.Show($"Extraction error: {ex.Message}", "Extraction Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         extractionResult = false;
                     }
                     finally
@@ -1093,7 +828,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error extracting environment: {ex.Message}");
+                MessageBox.Show($"Error extracting environment: {ex.Message}", "Extraction Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
@@ -1105,8 +840,18 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 // Update status
                 UpdateStatus(statusLabel, "Looking for Python environment package...");
                 
+                // Normalize paths
+                envDirPath = Path.GetFullPath(envDirPath);
+                string pythonExePath = Path.Combine(envDirPath, "python.exe");
+                
+                MessageBox.Show($"Checking for Python at: {pythonExePath}\n" +
+                               $"Environment directory: {envDirPath}\n" +
+                               $"Directory exists: {Directory.Exists(envDirPath)}\n" +
+                               $"Python exists: {File.Exists(pythonExePath)}",
+                               "Debug: PerformExtraction");
+                
                 // First check if the environment already exists
-                if (Directory.Exists(envDirPath) && File.Exists(Path.Combine(envDirPath, "python.exe")))
+                if (Directory.Exists(envDirPath) && File.Exists(pythonExePath))
                 {
                     MessageBox.Show($"Python environment already exists at {envDirPath}. Using existing installation.",
                         "Environment Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1157,9 +902,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     }
                     else
                     {
-                        // List directory contents for debugging
-                        string directoryContents = GetDirectoryContents(envDirPath);
-                        MessageBox.Show($"Error: Python executable not found at {pythonPath}. Directory contents:\n\n{directoryContents}",
+                        MessageBox.Show($"Error: Python executable not found at {pythonPath}. Please check the extraction process.",
                             "Python Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         
                         UpdateStatus(statusLabel, "Error: Python environment not properly extracted. Python executable not found.");
@@ -1181,66 +924,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
-        }
-
-        /// <summary>
-        /// Gets directory contents as a string for display in MessageBox
-        /// </summary>
-        private string GetDirectoryContents(string directoryPath, int maxFiles = 20)
-        {
-            StringBuilder sb = new StringBuilder();
-            
-            if (!Directory.Exists(directoryPath))
-            {
-                return $"Directory not found: {directoryPath}";
-            }
-
-            try
-            {
-                // List files in the root directory
-                string[] files = Directory.GetFiles(directoryPath);
-                sb.AppendLine($"Files in {directoryPath} ({Math.Min(files.Length, maxFiles)} of {files.Length} shown):");
-                
-                foreach (var file in files.Take(maxFiles))
-                {
-                    sb.AppendLine($"- {Path.GetFileName(file)}");
-                }
-                
-                if (files.Length > maxFiles)
-                {
-                    sb.AppendLine($"... and {files.Length - maxFiles} more files");
-                }
-                
-                // List subdirectories
-                string[] dirs = Directory.GetDirectories(directoryPath);
-                sb.AppendLine($"\nSubdirectories in {directoryPath}:");
-                
-                foreach (var dir in dirs)
-                {
-                    string dirName = Path.GetFileName(dir);
-                    bool hasPython = File.Exists(Path.Combine(dir, "python.exe"));
-                    sb.AppendLine($"- {dirName}" + (hasPython ? " (contains python.exe)" : ""));
-                }
-                
-                // Check Scripts directory specifically if it exists
-                string scriptsDir = Path.Combine(directoryPath, "Scripts");
-                if (Directory.Exists(scriptsDir))
-                {
-                    sb.AppendLine($"\nContents of Scripts directory:");
-                    string[] scriptFiles = Directory.GetFiles(scriptsDir).Take(maxFiles).ToArray();
-                    
-                    foreach (var file in scriptFiles)
-                    {
-                        sb.AppendLine($"- Scripts/{Path.GetFileName(file)}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                sb.AppendLine($"Error listing directory: {ex.Message}");
-            }
-            
-            return sb.ToString();
         }
 
         private void ExtractTarGzWithSharpCompress(string tarGzFilePath, string destinationPath, Label statusLabel)
@@ -1272,7 +955,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                         catch (Exception ex)
                         {
                             // If we can't count entries, just proceed without detailed progress
-                            Console.WriteLine($"Warning: Could not count entries: {ex.Message}");
+                            UpdateStatus(statusLabel, $"Warning: Could not count entries: {ex.Message}");
                             totalEntries = 1000; // Assume a large number
                         }
                         
@@ -1287,7 +970,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                                 // Skip entries with null keys
                                 if (string.IsNullOrEmpty(reader.Entry.Key))
                                 {
-                                    Console.WriteLine("Warning: Skipping entry with null key");
+                                    UpdateStatus(statusLabel, "Warning: Skipping entry with null key");
                                     continue;
                                 }
                                 
@@ -1304,7 +987,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                                 // Handle entry path cleanup - skip any parent directory references
                                 if (entryKey.StartsWith("..") || entryKey.Contains("/../") || entryKey.Contains("/./"))
                                 {
-                                    Console.WriteLine($"Warning: Skipping potentially unsafe path: {entryKey}");
+                                    UpdateStatus(statusLabel, $"Warning: Skipping potentially unsafe path: {entryKey}");
                                     continue;
                                 }
                                 
@@ -1343,7 +1026,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                             catch (Exception ex)
                             {
                                 // Log the error but continue with the next entry
-                                Console.WriteLine($"Warning: Error extracting entry {reader.Entry.Key}: {ex.Message}");
+                                UpdateStatus(statusLabel, $"Warning: Error extracting entry {reader.Entry.Key}: {ex.Message}");
                             }
                         }
                     }
@@ -1372,6 +1055,32 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             {
                 statusLabel.Text = message;
                 Application.DoEvents();
+            }
+        }
+
+        /// <summary>
+        /// Updates the output directory based on the project name
+        /// </summary>
+        private void UpdateOutputDirectory()
+        {
+            // Set the output directory again as it might have a timestamp
+            string detectionsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Detections");
+            if (Directory.Exists(detectionsDir))
+            {
+                // Look for directories containing the project name
+                string[] matchingDirs = Directory.GetDirectories(detectionsDir)
+                    .Where(d => Path.GetFileName(d).Contains(projectNameTextBox.Text))
+                    .ToArray();
+                    
+                // Use the most recently created directory (which would have the latest timestamp)
+                if (matchingDirs.Length > 0)
+                {
+                    _outputDirectory = matchingDirs
+                        .OrderByDescending(d => Directory.GetCreationTime(d))
+                        .First();
+                        
+                    MessageBox.Show($"Updated output directory to: {_outputDirectory}", "Output Directory", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
         }
     }

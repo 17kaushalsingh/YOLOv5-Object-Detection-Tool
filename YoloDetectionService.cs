@@ -18,7 +18,8 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
     public class YoloDetectionService
     {
         // Path information for assets, Python script, and Python executable
-        private readonly string _assetsPath, _scriptPath, _pythonPath;
+        private readonly string _assetsPath, _scriptPath;
+        private string _pythonPath;  // Removed readonly to allow updating the path if needed
         // Process reference to the running Python server
         private Process _serverProcess;
         // Status flags for tracking server and detection state
@@ -39,7 +40,21 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             // Define the paths for the assets, python script, python executables, etc.
             _assetsPath = Path.Combine(basePath, "Models");
             _scriptPath = Path.Combine(basePath, "detect_trt_server.py");
+            
+            // Ensure proper path normalization for Windows
+            basePath = Path.GetFullPath(basePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             _pythonPath = Path.Combine(basePath, "yolov5_env", "python.exe");
+            
+            // Immediately check and set _portableEnvironmentAvailable flag
+            CheckAndSetPortableEnvironment();
+            
+            // Debug logging - display the absolute path and check if it exists
+            MessageBox.Show($"Python path set to: {_pythonPath}\n" +
+                           $"Python.exe exists: {File.Exists(_pythonPath)}\n" +
+                           $"Base directory: {basePath}\n" +
+                           $"yolov5_env directory exists: {Directory.Exists(Path.Combine(basePath, "yolov5_env"))}\n" + 
+                           $"PortableEnvironmentAvailable: {_portableEnvironmentAvailable}", 
+                           "Debug: YoloDetectionService Constructor");
             
             // Create a temporary directory for file operations
             _tempDirectory = Path.Combine(basePath, "Temp");
@@ -47,6 +62,41 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             {
                 Directory.CreateDirectory(_tempDirectory);
             }
+        }
+
+        /// <summary>
+        /// Check and set the _portableEnvironmentAvailable flag by checking if python.exe exists
+        /// </summary>
+        private void CheckAndSetPortableEnvironment()
+        {
+            // Try multiple approaches to check if the file exists
+            bool pythonExists = File.Exists(_pythonPath);
+            
+            // If standard check fails, try alternate path format
+            if (!pythonExists)
+            {
+                // Try alternative path formats
+                string altPath1 = _pythonPath.Replace('\\', '/');
+                string altPath2 = Path.GetFullPath(_pythonPath);
+                
+                pythonExists = File.Exists(altPath1) || File.Exists(altPath2);
+                
+                // If we confirmed existence using alternate paths, update _pythonPath
+                if (pythonExists)
+                {
+                    if (File.Exists(altPath1))
+                    {
+                        _pythonPath = altPath1;
+                    }
+                    else if (File.Exists(altPath2))
+                    {
+                        _pythonPath = altPath2;
+                    }
+                }
+            }
+            
+            // Set the flag based on whether we found python.exe
+            _portableEnvironmentAvailable = pythonExists;
         }
 
         // Getters for the paths
@@ -67,16 +117,20 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         {
             errorMessage = string.Empty;
 
-            // First verify portable Python environment
-            if (!File.Exists(_pythonPath))
+            // First verify portable Python environment - use the flag we already set
+            MessageBox.Show($"DEBUG VerifyDependencies: Checking portable environment flag: {_portableEnvironmentAvailable}");
+            
+            if (!_portableEnvironmentAvailable)
             {
-                _portableEnvironmentAvailable = false;
                 errorMessage = $"Portable Python environment not found at: {_pythonPath}\nPlease ensure the yolov5_env folder is included with the application.";
                 
                 MessageBox.Show("ERROR: Portable Python environment not found at: " + _pythonPath, "Python Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 
                 // Check if the directory exists but python.exe is missing
                 string envDir = Path.GetDirectoryName(_pythonPath);
+                MessageBox.Show($"DEBUG VerifyDependencies: Checking directory: {envDir}");
+                MessageBox.Show($"DEBUG VerifyDependencies: Directory exists: {Directory.Exists(envDir)}");
+                
                 if (Directory.Exists(envDir))
                 {
                     MessageBox.Show($"yolov5_env directory exists but python.exe not found.", 
@@ -84,10 +138,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 }
                 
                 return false;
-            }
-            else
-            {
-                _portableEnvironmentAvailable = true;
             }
 
             // Verify Assets directory exists
@@ -157,6 +207,17 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     return false;
                 }
 
+                // Additional check for python.exe - verify it exists one more time
+                if (!File.Exists(_pythonPath))
+                {
+                    errorMessage = $"Python executable not found at: {_pythonPath}. Cannot start server.";
+                    MessageBox.Show(errorMessage, "Python Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
+                
+                // Log the Python path being used
+                MessageBox.Show($"DEBUG StartServer: Using Python at: {_pythonPath}");
+
                 // Build the command parameters for starting the server
                 string enginePath = Path.Combine(_assetsPath, engineFile);
                 string labelsPath = Path.Combine(_assetsPath, yamlFile);
@@ -177,25 +238,28 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 }
                 
                 // Create the command for the server using the portable Python executable
-                string serverCommand = $"\"{_pythonPath}\"";
-                serverCommand += $" \"{_scriptPath.Replace('\\', '/')}\"";
-                serverCommand += $" --engine \"{enginePath.Replace('\\', '/')}\"";
-                serverCommand += $" --labels \"{labelsPath.Replace('\\', '/')}\"";
-                serverCommand += $" --input_shape 1,3,{horizontalResolution},{verticalResolution}";
-                serverCommand += $" --output_shape 1,100800,15";
-                serverCommand += $" --conf_thresh {confidenceThreshold}";
-                serverCommand += $" --nms_thresh {iouThreshold}";
-                serverCommand += $" --output_dir \"{projectName}\"";
+                // Fix up all path separators to use forward slashes for Python
+                string scriptPathNormalized = _scriptPath.Replace('\\', '/');
+                string enginePathNormalized = enginePath.Replace('\\', '/');
+                string labelsPathNormalized = labelsPath.Replace('\\', '/');
                 
-                // Add optional parameters
-                if (hideLabels) serverCommand += " --hide_labels";
-                if (hideConfidence) serverCommand += " --hide_conf";
-
-                // Configure process start info to hide the window
+                // Show the normalized paths for debugging
+                MessageBox.Show($"Script: {scriptPathNormalized}\nEngine: {enginePathNormalized}\nLabels: {labelsPathNormalized}", "Normalized Paths Debug");
+                
+                // Configure process start info to run Python directly instead of through cmd
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
-                    FileName = "cmd.exe",
-                    Arguments = $"/k {serverCommand}",
+                    FileName = _pythonPath,
+                    Arguments = $"{scriptPathNormalized} " +
+                              $"--engine \"{enginePathNormalized}\" " +
+                              $"--labels \"{labelsPathNormalized}\" " +
+                              $"--input_shape 1,3,{horizontalResolution},{verticalResolution} " +
+                              $"--output_shape 1,100800,15 " +
+                              $"--conf_thresh {confidenceThreshold} " +
+                              $"--nms_thresh {iouThreshold} " +
+                              $"--output_dir \"{projectName}\"" +
+                              (hideLabels ? " --hide_labels" : "") +
+                              (hideConfidence ? " --hide_conf" : ""),
                     UseShellExecute = false,
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,
@@ -203,6 +267,21 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     CreateNoWindow = true, // Hide the window
                     WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory
                 };
+                
+                // Show the full command being executed for debugging
+                MessageBox.Show($"Full command: {startInfo.FileName} {startInfo.Arguments}", "Command Debug");
+                
+                // Display the working directory
+                MessageBox.Show($"Working directory: {AppDomain.CurrentDomain.BaseDirectory}", "Working Directory Debug");
+                
+                // First run a simple test to verify Python is working properly
+                bool pythonTestPassed = RunPythonTest();
+                if (!pythonTestPassed)
+                {
+                    errorMessage = "Python test failed. The environment may be misconfigured.";
+                    MessageBox.Show(errorMessage, "Python Test Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
 
                 // Start the server process
                 _serverProcess = new Process { StartInfo = startInfo };
@@ -216,6 +295,12 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 
                 // Wait a moment to allow the server to initialize
                 Thread.Sleep(2000);
+                
+                // Check if the server created the expected directories
+                string detectionsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Detections");
+                string projectDir = Path.Combine(detectionsDir, projectName);
+                
+                MessageBox.Show($"Checking for Detections directory: {detectionsDir}\nExists: {Directory.Exists(detectionsDir)}\n\nChecking for project directory: {projectDir}\nExists: {Directory.Exists(projectDir)}", "Directory Check Debug");
                 
                 _isServerRunning = true;
                 return true;
@@ -245,6 +330,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             // Process output data if needed
             if (!string.IsNullOrEmpty(e.Data))
             {
+                // Log all server output for debugging
+                MessageBox.Show($"Server Output: {e.Data}", "Server Output Debug");
+                
                 // Check if server is ready for commands or detection completed
                 if (e.Data.Contains(">"))
                 {
@@ -261,7 +349,138 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         /// </summary>
         private void ServerProcess_ErrorDataReceived(object sender, DataReceivedEventArgs e)
         {
-            // Process significant errors only - no console output
+            // Log all error output for debugging
+            if (!string.IsNullOrEmpty(e.Data))
+            {
+                MessageBox.Show($"Server Error: {e.Data}", "Server Error Debug");
+                
+                // Check for specific Python errors
+                if (e.Data.Contains("ImportError") || e.Data.Contains("ModuleNotFoundError"))
+                {
+                    string errorMessage = $"Python module import error: {e.Data}";
+                    MessageBox.Show(errorMessage, "Python Import Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else if (e.Data.Contains("SyntaxError") || e.Data.Contains("IndentationError"))
+                {
+                    string errorMessage = $"Python syntax error: {e.Data}";
+                    MessageBox.Show(errorMessage, "Python Syntax Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else if (e.Data.Contains("FileNotFoundError") || e.Data.Contains("PermissionError"))
+                {
+                    string errorMessage = $"Python file access error: {e.Data}";
+                    MessageBox.Show(errorMessage, "Python File Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else if (e.Data.Contains("RuntimeError") || e.Data.Contains("ValueError"))
+                {
+                    string errorMessage = $"Python runtime error: {e.Data}";
+                    MessageBox.Show(errorMessage, "Python Runtime Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else if (e.Data.Contains("Traceback") || e.Data.Contains("Exception"))
+                {
+                    string errorMessage = $"Python exception: {e.Data}";
+                    MessageBox.Show(errorMessage, "Python Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Run a simple Python test to verify the environment is working properly.
+        /// </summary>
+        /// <returns>True if the test passes, false if it fails.</returns>
+        private bool RunPythonTest()
+        {
+            try
+            {
+                // Create a simple Python test script to verify imports
+                string testScript = @"
+import sys
+import os
+print('Python version:', sys.version)
+print('Python executable:', sys.executable)
+print('Current directory:', os.getcwd())
+print('PYTHONPATH:', os.environ.get('PYTHONPATH', ''))
+
+# Try importing required modules
+try:
+    import numpy
+    print('numpy version:', numpy.__version__)
+except ImportError as e:
+    print('Error importing numpy:', e)
+
+try:
+    import cv2
+    print('cv2 version:', cv2.__version__)
+except ImportError as e:
+    print('Error importing cv2:', e)
+
+try:
+    import tensorrt
+    print('tensorrt version:', tensorrt.__version__)
+except ImportError as e:
+    print('Error importing tensorrt:', e)
+
+try:
+    import pycuda.driver
+    print('pycuda version available')
+except ImportError as e:
+    print('Error importing pycuda:', e)
+";
+                string tempTestFilePath = Path.Combine(Path.GetTempPath(), "python_test.py");
+                File.WriteAllText(tempTestFilePath, testScript);
+                
+                // Create process to run the test
+                ProcessStartInfo testStartInfo = new ProcessStartInfo
+                {
+                    FileName = _pythonPath,
+                    Arguments = $"\"{tempTestFilePath}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory
+                };
+                
+                // Run the test
+                using (Process testProcess = new Process { StartInfo = testStartInfo })
+                {
+                    StringBuilder output = new StringBuilder();
+                    StringBuilder error = new StringBuilder();
+                    
+                    testProcess.OutputDataReceived += (sender, e) => {
+                        if (!string.IsNullOrEmpty(e.Data))
+                            output.AppendLine(e.Data);
+                    };
+                    
+                    testProcess.ErrorDataReceived += (sender, e) => {
+                        if (!string.IsNullOrEmpty(e.Data))
+                            error.AppendLine(e.Data);
+                    };
+                    
+                    testProcess.Start();
+                    testProcess.BeginOutputReadLine();
+                    testProcess.BeginErrorReadLine();
+                    testProcess.WaitForExit();
+                    
+                    // Display the test results
+                    MessageBox.Show($"Python Test Output:\n{output.ToString()}", "Python Test Results");
+                    
+                    if (!string.IsNullOrEmpty(error.ToString()))
+                    {
+                        MessageBox.Show($"Python Test Errors:\n{error.ToString()}", "Python Test Errors");
+                        return false;
+                    }
+                    
+                    // Clean up the temp file
+                    try { File.Delete(tempTestFilePath); } catch { }
+                    
+                    return testProcess.ExitCode == 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Python test failed with exception: {ex.Message}", "Python Test Exception");
+                return false;
+            }
         }
 
         /// <summary>
