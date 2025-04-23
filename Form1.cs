@@ -8,7 +8,6 @@ using System.Reflection;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
-using System.IO.Compression;
 using System.Threading;
 using SharpCompress.Common;
 using SharpCompress.Readers;
@@ -1151,27 +1150,10 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     string pythonPath = Path.Combine(envDirPath, "python.exe");
                     if (File.Exists(pythonPath))
                     {
-                        UpdateStatus(statusLabel, "Running conda-unpack to finalize the environment...");
-                        MessageBox.Show($"Python executable found at: {pythonPath}. Running conda-unpack...",
-                            "Python Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        
-                        // Run conda-unpack to make the environment relocatable
-                        bool unpackSuccess = RunCondaUnpack(envDirPath, statusLabel);
-                        
-                        if (unpackSuccess)
-                        {
-                            UpdateStatus(statusLabel, "Successfully extracted and unpacked Python environment.");
-                            MessageBox.Show("Successfully extracted and unpacked yolov5_env.",
-                                "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            return true;
-                        }
-                        else
-                        {
-                            UpdateStatus(statusLabel, "Failed to unpack the conda environment.");
-                            MessageBox.Show("Failed to unpack the conda environment. Please check the logs for details.",
-                                "Unpack Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            return false;
-                        }
+                        UpdateStatus(statusLabel, "Successfully extracted Python environment.");
+                        MessageBox.Show("Successfully extracted yolov5_env.",
+                            "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return true;
                     }
                     else
                     {
@@ -1197,125 +1179,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 UpdateStatus(statusLabel, $"Error: {ex.Message}");
                 MessageBox.Show($"Error extracting environment: {ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Run conda-unpack to make the conda environment relocatable by
-        /// converting absolute paths to relative paths
-        /// </summary>
-        private bool RunCondaUnpack(string envDirPath, Label statusLabel)
-        {
-            try
-            {
-                // Check for conda-unpack.exe in the Scripts directory
-                string condaUnpackPath = Path.Combine(envDirPath, "Scripts", "conda-unpack.exe");
-                
-                // Verify conda-unpack.exe exists
-                if (!File.Exists(condaUnpackPath))
-                {
-                    MessageBox.Show($"Error: conda-unpack.exe not found at {condaUnpackPath}",
-                        "Conda-Unpack Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    UpdateStatus(statusLabel, "Error: conda-unpack tool not found in the environment.");
-                    
-                    // Show directory contents for debugging
-                    string directoryContents = GetDirectoryContents(envDirPath);
-                    MessageBox.Show($"Directory contents of {envDirPath}:\n\n{directoryContents}",
-                        "Directory Contents", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    
-                    return false;
-                }
-                
-                MessageBox.Show($"Found conda-unpack at: {condaUnpackPath}. Running now...",
-                    "Conda-Unpack Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                
-                // Create process to run conda-unpack
-                ProcessStartInfo startInfo = new ProcessStartInfo
-                {
-                    FileName = condaUnpackPath,
-                    WorkingDirectory = envDirPath,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
-                
-                using (Process process = new Process { StartInfo = startInfo })
-                {
-                    // Track detailed progress
-                    StringBuilder outputBuilder = new StringBuilder();
-                    StringBuilder errorBuilder = new StringBuilder();
-                    
-                    process.OutputDataReceived += (sender, e) => 
-                    { 
-                        if (!string.IsNullOrEmpty(e.Data)) 
-                        {
-                            outputBuilder.AppendLine(e.Data);
-                            UpdateStatus(statusLabel, $"Unpacking: {e.Data}");
-                        }
-                    };
-                    
-                    process.ErrorDataReceived += (sender, e) => 
-                    { 
-                        if (!string.IsNullOrEmpty(e.Data)) 
-                        {
-                            errorBuilder.AppendLine(e.Data);
-                        }
-                    };
-                    
-                    // Start the process
-                    UpdateStatus(statusLabel, "Running conda-unpack to fix paths...");
-                    process.Start();
-                    
-                    // Begin async reading
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-                    
-                    // Wait for process completion (with timeout)
-                    bool completed = process.WaitForExit(300000); // 5 minute timeout
-                    
-                    if (!completed)
-                    {
-                        // Process timed out
-                        try 
-                        { 
-                            process.Kill(); 
-                        } 
-                        catch 
-                        { 
-                            // Ignore errors on kill 
-                        }
-                        
-                        UpdateStatus(statusLabel, "Error: conda-unpack timed out after 5 minutes.");
-                        MessageBox.Show("Error: conda-unpack timed out after 5 minutes.",
-                            "Timeout Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return false;
-                    }
-                    
-                    // Check for success
-                    if (process.ExitCode == 0)
-                    {
-                        UpdateStatus(statusLabel, "Successfully unpacked the conda environment.");
-                        MessageBox.Show("Successfully unpacked the conda environment.",
-                            "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        return true;
-                    }
-                    else
-                    {
-                        string errorOutput = errorBuilder.ToString();
-                        UpdateStatus(statusLabel, "Error running conda-unpack.");
-                        MessageBox.Show($"conda-unpack failed with exit code {process.ExitCode}.\nError output: {errorOutput}",
-                            "Unpack Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return false;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                UpdateStatus(statusLabel, $"Error running conda-unpack: {ex.Message}");
-                MessageBox.Show($"Error running conda-unpack: {ex.Message}",
-                    "Unpack Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
