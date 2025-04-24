@@ -57,9 +57,9 @@ def compare_images(folder1, folder2, save_folder):
             combined_img.save(save_path)
 
 if __name__ == "__main__":
-    folder_1 = r"Detections\yolov5_custom"
-    folder_2 = r"Detections\yolov5_real"
-    save_folder = r"Detections\comp_custom_vs_real"
-    compare_images(folder_1, folder_2, save_folder)
+    folder_1 = input("Enter the path to the first folder (e.g., Detections/yolov5_custom): ")
+    folder_2 = input("Enter the path to the second folder (e.g., Detections/yolov5_real): ")
+    save_folder = input("Enter the path to the folder where you want to save the combined images: ")
 
+    compare_images(folder_1, folder_2, save_folder)
     print(f"Images compared and saved in folder: {save_folder}")
