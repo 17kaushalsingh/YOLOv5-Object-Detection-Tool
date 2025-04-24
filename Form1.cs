@@ -20,33 +20,41 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 {
     public partial class Form1 : Form
     {
-        //----------------------------------------------------------------------
-        // Detection Configuration Panel Controls
         // 1. Detection Configuration Items: Weights and Labels Files, Source Image Selection, Hardware Acceleration Settings
-        // 2. Detection Parameters Items: Image Resolution and Threshold Settings (Confidence and IOU)
-        // 3. Logging Configuration Items: Project Naming, Output Visualization Options (Hide Labels and Confidence)
-        // 4. Image Panel Controls: Input and Output Image Display
-        // 5. Common Font for Controls
-        //----------------------------------------------------------------------
-        Label selectWeightsFileLabel, selectLabelsFileLabel, imageResolutionLabel, confidenceThresholdLabel, iouThresholdLabel, projectNameLabel, inputImageLabel, outputImageLabel;
+        Label selectWeightsFileLabel, selectLabelsFileLabel;
         ComboBox selectWeightsFileComboBox, selectLabelsFileComboBox;
-        Button selectImageButton, selectFolderButton, startServerButton, quitServerButton, startDetectionButton, previousButton, nextButton;
-        string selectedPath;
-        bool isFolder = false;
-        CheckBox enableGpuCheckBox, hideLabelCheckBox, hideConfidenceCheckBox;
+        CheckBox enableGpuCheckBox;
+        Button selectImageButton, selectFolderButton;
+        GroupBox detectionConfigGroupBox;
+
+        // 2. Detection Parameters Items: Image Resolution, Confidence and IOU, Project Name
+        Label imageResolutionLabel, confidenceThresholdLabel, iouThresholdLabel, projectNameLabel;
         TextBox imageResolutionHorizontalTextBox, imageResolutionVerticalTextBox, confidenceThresholdTextBox, iouThresholdTextBox, projectNameTextBox;
+        GroupBox detectionParametersGroupBox;
+
+        // 3. Server Controls: Start Server, Stop Server, Start Detection
+        Button startServerButton, quitServerButton, startDetectionButton;
+
+        // 4. Image Panel Controls: Input and Output Image Display
+        Label inputImageLabel, outputImageLabel;
         PictureBox inputPictureBox, outputPictureBox;
         Image inputImage, outputImage;
-        GroupBox detectionConfigGroupBox, detectionParametersGroupBox, loggingConfigGroupBox, imagePanelGroupBox;
-        Font regularFont = new Font("Arial", 9, FontStyle.Regular), boldFont = new Font("Arial", 9, FontStyle.Bold);
+        Button previousButton, nextButton;
+        GroupBox imagePanelGroupBox;
+
+        // 5. Common Font for Controls
+        Font regularFont = new Font("Arial", 9, FontStyle.Regular);
+        Font boldFont = new Font("Arial", 9, FontStyle.Bold);
+
+        string selectedPath;
+        bool isFolder = false;
+        
         private readonly YoloDetectionService _detectionService;
         private List<string> _imageFiles = new List<string>();
         private int _currentImageIndex = 0;
         
-        // Flag to track if detection has been completed
-        private bool _detectionCompleted = false;
-        // Store the output directory for detected images
-        private string _outputDirectory = string.Empty;
+        private bool _detectionCompleted = false; // Flag to track if detection has been completed
+        private string _outputDirectory = string.Empty; // Store the output directory for detected images
 
         public Form1()
         {
@@ -108,12 +116,8 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             YoloApplicationUI.InitializeDetectionConfigControls(detectionConfigGroupBox, regularFont, ref selectWeightsFileLabel, ref selectLabelsFileLabel, ref selectWeightsFileComboBox, ref selectLabelsFileComboBox, ref selectImageButton, ref selectFolderButton, ref enableGpuCheckBox, selectImageButton_Click, selectFolderButton_Click);
 
             // Create detection parameters group
-            detectionParametersGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Parameters", new Point(20, 220), new Size(400, 120), boldFont);
-            YoloApplicationUI.InitializeDetectionParametersControls(detectionParametersGroupBox, regularFont, ref imageResolutionLabel, ref confidenceThresholdLabel, ref iouThresholdLabel, ref imageResolutionHorizontalTextBox, ref imageResolutionVerticalTextBox, ref confidenceThresholdTextBox, ref iouThresholdTextBox);
-
-            // Create logging configuration group 
-            loggingConfigGroupBox = YoloApplicationUI.CreateGroupBox(this, "Logging Configuration", new Point(20, 350), new Size(400, 120), boldFont);
-            YoloApplicationUI.InitializeLoggingConfigurationControls(loggingConfigGroupBox, regularFont, ref projectNameLabel, ref projectNameTextBox, ref hideLabelCheckBox, ref hideConfidenceCheckBox);
+            detectionParametersGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Parameters", new Point(20, 220), new Size(400, 150), boldFont);
+            YoloApplicationUI.InitializeDetectionParametersControls(detectionParametersGroupBox, regularFont, ref imageResolutionLabel, ref confidenceThresholdLabel, ref iouThresholdLabel, ref projectNameLabel, ref imageResolutionHorizontalTextBox, ref imageResolutionVerticalTextBox, ref confidenceThresholdTextBox, ref iouThresholdTextBox, ref projectNameTextBox);
 
             // Create server control buttons
             YoloApplicationUI.CreateServerControlButtons(this, ref startServerButton, ref quitServerButton, ref startDetectionButton, startServerButton_Click, quitServerButton_Click, startDetectionButton_Click);
@@ -521,8 +525,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     imageResolutionVerticalTextBox.Text,
                     confidenceThresholdTextBox.Text,
                     iouThresholdTextBox.Text,
-                    hideLabelCheckBox.Checked,
-                    hideConfidenceCheckBox.Checked,
                     projectNameTextBox.Text,
                     out errorMessage
                 );
@@ -628,8 +630,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             confidenceThresholdTextBox.Enabled = enabled;
             iouThresholdTextBox.Enabled = enabled;
             projectNameTextBox.Enabled = enabled;
-            hideLabelCheckBox.Enabled = enabled;
-            hideConfidenceCheckBox.Enabled = enabled;
             enableGpuCheckBox.Enabled = enabled;
         }
 

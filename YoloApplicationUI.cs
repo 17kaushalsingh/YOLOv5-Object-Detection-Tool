@@ -6,9 +6,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
     public static class YoloApplicationUI
     {
-        /// <summary>
         /// Creates a GroupBox with the specified text, location, and size.
-        /// </summary>
         public static GroupBox CreateGroupBox(Form parent, string text, Point location, Size size, Font boldFont)
         {
             var groupBox = new GroupBox
@@ -23,9 +21,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             return groupBox;
         }
 
-        /// <summary>
         /// Initializes detection configuration controls within the specified parent group.
-        /// </summary>
         public static void InitializeDetectionConfigControls(GroupBox parentGroup, Font regularFont, ref Label selectWeightsFileLabel, ref Label selectLabelsFileLabel, ref ComboBox selectWeightsFileComboBox, ref ComboBox selectLabelsFileComboBox, ref Button selectImageButton, ref Button selectFolderButton, ref CheckBox enableGpuCheckBox, EventHandler selectImageButtonClickHandler, EventHandler selectFolderButtonClickHandler)
         {
             // Weights File Label
@@ -114,10 +110,8 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             parentGroup.Controls.Add(enableGpuCheckBox);
         }
 
-        /// <summary>
         /// Initializes detection parameters controls within the specified parent group.
-        /// </summary>
-        public static void InitializeDetectionParametersControls(GroupBox parentGroup, Font regularFont, ref Label imageResolutionLabel, ref Label confidenceThresholdLabel, ref Label iouThresholdLabel, ref TextBox imageResolutionHorizontalTextBox, ref TextBox imageResolutionVerticalTextBox, ref TextBox confidenceThresholdTextBox, ref TextBox iouThresholdTextBox)
+        public static void InitializeDetectionParametersControls(GroupBox parentGroup, Font regularFont, ref Label imageResolutionLabel, ref Label confidenceThresholdLabel, ref Label iouThresholdLabel, ref Label projectNameLabel, ref TextBox imageResolutionHorizontalTextBox, ref TextBox imageResolutionVerticalTextBox, ref TextBox confidenceThresholdTextBox, ref TextBox iouThresholdTextBox, ref TextBox projectNameTextBox)
         {
             // Image Resolution Label
             imageResolutionLabel = new Label
@@ -198,18 +192,12 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 Font = regularFont
             };
             parentGroup.Controls.Add(iouThresholdTextBox);
-        }
 
-        /// <summary>
-        /// Initializes logging configuration controls within the specified parent group.
-        /// </summary>
-        public static void InitializeLoggingConfigurationControls(GroupBox parentGroup, Font regularFont, ref Label projectNameLabel, ref TextBox projectNameTextBox, ref CheckBox hideLabelCheckBox, ref CheckBox hideConfidenceCheckBox)
-        {
             // Project Name Label
             projectNameLabel = new Label
             {
                 Text = "Project Name:",
-                Location = new Point(20, 30),
+                Location = new Point(20, 120),
                 Size = new Size(100, 20),
                 Font = regularFont
             };
@@ -219,43 +207,21 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             projectNameTextBox = new TextBox
             {
                 Text = "PETRIS_Test_Data",
-                Location = new Point(130, 30),
+                Location = new Point(130, 120),
                 Size = new Size(250, 20),
                 Font = regularFont
             };
             parentGroup.Controls.Add(projectNameTextBox);
-
-            // Hide Labels CheckBox
-            hideLabelCheckBox = new CheckBox
-            {
-                Text = "Hide Labels",
-                Location = new Point(20, 60),
-                Size = new Size(100, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(hideLabelCheckBox);
-
-            // Hide Confidence CheckBox
-            hideConfidenceCheckBox = new CheckBox
-            {
-                Text = "Hide Confidence",
-                Location = new Point(130, 60),
-                Size = new Size(120, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(hideConfidenceCheckBox);
         }
-        
-        /// <summary>
+
         /// Creates server control buttons on the form.
-        /// </summary>
         public static void CreateServerControlButtons(Form parent, ref Button startServerButton, ref Button quitServerButton, ref Button startDetectionButton, EventHandler startServerButtonClickHandler, EventHandler quitServerButtonClickHandler, EventHandler startDetectionButtonClickHandler)
         {
             // Start Server Button
             startServerButton = new Button
             {
                 Text = "Start Server",
-                Location = new Point(20, 480),
+                Location = new Point(20, 390),
                 Size = new Size(190, 40),
                 Font = new Font("Arial", 14, FontStyle.Bold),
                 BackColor = Color.LightGreen,
@@ -270,7 +236,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             quitServerButton = new Button
             {
                 Text = "Stop Server",
-                Location = new Point(230, 480),
+                Location = new Point(230, 390),
                 Size = new Size(190, 40),
                 Font = new Font("Arial", 14, FontStyle.Bold),
                 BackColor = Color.LightCoral,
@@ -286,7 +252,8 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             startDetectionButton = new Button
             {
                 Text = "► Start Detection",
-                Location = new Point(20, 530),
+
+                Location = new Point(20, 450),
                 Size = new Size(400, 40),
                 Font = new Font("Arial", 18, FontStyle.Bold),
                 BackColor = Color.LightBlue,
@@ -299,9 +266,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             parent.Controls.Add(startDetectionButton);
         }
 
-        /// <summary>
         /// Initializes image panel controls within the specified parent group.
-        /// </summary>
         public static void InitializeImagePanelControls(GroupBox parentGroup, Font boldFont, Font regularFont, ref Label inputImageLabel, ref Label outputImageLabel, ref PictureBox inputPictureBox, ref PictureBox outputPictureBox, ref Button previousButton, ref Button nextButton, EventHandler previousButtonClickHandler, EventHandler nextButtonClickHandler)
         {
             // Input Image Label

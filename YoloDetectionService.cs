@@ -189,7 +189,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         /// <param name="projectName">Project name for saving outputs</param>
         /// <param name="errorMessage">Out parameter containing error details if server fails to start</param>
         /// <returns>True if server started successfully, false otherwise</returns>
-        public bool StartServer(string engineFile, string yamlFile, string horizontalResolution, string verticalResolution, string confidenceThreshold, string iouThreshold, bool hideLabels, bool hideConfidence, string projectName, out string errorMessage)
+        public bool StartServer(string engineFile, string yamlFile, string horizontalResolution, string verticalResolution, string confidenceThreshold, string iouThreshold, string projectName, out string errorMessage)
         {
             errorMessage = string.Empty;
             try
@@ -257,9 +257,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                               $"--output_shape 1,100800,15 " +
                               $"--conf_thresh {confidenceThreshold} " +
                               $"--nms_thresh {iouThreshold} " +
-                              $"--output_dir \"{projectName}\"" +
-                              (hideLabels ? " --hide_labels" : "") +
-                              (hideConfidence ? " --hide_conf" : ""),
+                              $"--output_dir \"{projectName}\"",
                     UseShellExecute = false,
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,
