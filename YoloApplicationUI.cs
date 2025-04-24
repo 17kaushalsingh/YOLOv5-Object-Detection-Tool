@@ -27,7 +27,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             // Weights File Label
             selectWeightsFileLabel = new Label
             {
-                Text = "Select Weights File:",
+                Text = "Select Weights File",
                 Location = new Point(20, 30),
                 Size = new Size(150, 20),
                 Font = regularFont
@@ -53,7 +53,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             // Labels File Label
             selectLabelsFileLabel = new Label
             {
-                Text = "Select Labels File:",
+                Text = "Select Labels File",
                 Location = new Point(20, 60),
                 Size = new Size(150, 20),
                 Font = regularFont
@@ -116,99 +116,99 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             // Image Resolution Label
             imageResolutionLabel = new Label
             {
-                Text = "Image Resolution:",
+                Text = "Image Resolution",
                 Location = new Point(20, 30),
                 Size = new Size(120, 20),
                 Font = regularFont
             };
             parentGroup.Controls.Add(imageResolutionLabel);
 
-            // Horizontal Resolution TextBox
-            imageResolutionHorizontalTextBox = new TextBox
-            {
-                Text = "1280",
-                Location = new Point(150, 30),
-                Size = new Size(50, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(imageResolutionHorizontalTextBox);
-
             // Resolution Separator Label
             Label resolutionSeparatorLabel = new Label
             {
                 Text = "×",
-                Location = new Point(205, 33),
+                Location = new Point(245, 33),
                 Size = new Size(15, 20),
                 Font = regularFont
             };
             parentGroup.Controls.Add(resolutionSeparatorLabel);
 
-            // Vertical Resolution TextBox
-            imageResolutionVerticalTextBox = new TextBox
-            {
-                Text = "1280",
-                Location = new Point(225, 30),
-                Size = new Size(50, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(imageResolutionVerticalTextBox);
-
             // Confidence Threshold Label
             confidenceThresholdLabel = new Label
             {
-                Text = "Confidence Threshold:",
+                Text = "Confidence Threshold",
                 Location = new Point(20, 60),
-                Size = new Size(120, 20),
+                Size = new Size(150, 20),
                 Font = regularFont
             };
             parentGroup.Controls.Add(confidenceThresholdLabel);
 
-            // Confidence Threshold TextBox
-            confidenceThresholdTextBox = new TextBox
-            {
-                Text = "0.25",
-                Location = new Point(150, 60),
-                Size = new Size(60, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(confidenceThresholdTextBox);
-
             // IOU Threshold Label
             iouThresholdLabel = new Label
             {
-                Text = "IOU Threshold:",
+                Text = "IOU Threshold",
                 Location = new Point(20, 90),
                 Size = new Size(120, 20),
                 Font = regularFont
             };
             parentGroup.Controls.Add(iouThresholdLabel);
 
-            // IOU Threshold TextBox
-            iouThresholdTextBox = new TextBox
-            {
-                Text = "0.45",
-                Location = new Point(150, 90),
-                Size = new Size(60, 20),
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(iouThresholdTextBox);
-
             // Project Name Label
             projectNameLabel = new Label
             {
-                Text = "Project Name:",
+                Text = "Project Name",
                 Location = new Point(20, 120),
                 Size = new Size(100, 20),
                 Font = regularFont
             };
             parentGroup.Controls.Add(projectNameLabel);
 
+            // Horizontal Resolution TextBox
+            imageResolutionHorizontalTextBox = new TextBox
+            {
+                Text = "1280",
+                Location = new Point(200, 30),
+                Size = new Size(40, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(imageResolutionHorizontalTextBox);
+
+            // Vertical Resolution TextBox
+            imageResolutionVerticalTextBox = new TextBox
+            {
+                Text = "1280",
+                Location = new Point(265, 30),
+                Size = new Size(40, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(imageResolutionVerticalTextBox);
+
+            // Confidence Threshold TextBox
+            confidenceThresholdTextBox = new TextBox
+            {
+                Text = "0.25",
+                Location = new Point(200, 60),
+                Size = new Size(40, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(confidenceThresholdTextBox);
+
+            // IOU Threshold TextBox
+            iouThresholdTextBox = new TextBox
+            {
+                Text = "0.45",
+                Location = new Point(200, 90),
+                Size = new Size(40, 20),
+                Font = regularFont
+            };
+            parentGroup.Controls.Add(iouThresholdTextBox);
+
             // Project Name TextBox
             projectNameTextBox = new TextBox
             {
                 Text = "PETRIS_Test_Data",
-                Location = new Point(130, 120),
-                Size = new Size(250, 20),
+                Location = new Point(200, 120),
+                Size = new Size(180, 20),
                 Font = regularFont
             };
             parentGroup.Controls.Add(projectNameTextBox);
