@@ -2,10 +2,10 @@
 
 # UI
 ## Suggested UI
-![Suggested UI](README_Assets/SUGGESTED_UI.png)
+![Suggested UI](SUGGESTED_UI.png)
 
 ## Actual UI
-![Actual UI](README_Assets/UI.png)
+![Actual UI](UI.png)
 
 ## Getting Started: Download Project Repo
 Clone the repo
