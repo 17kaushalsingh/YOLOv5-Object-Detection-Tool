@@ -1,11 +1,17 @@
 # Test Software for AI Automatic Mixer Cleaning Machine
 
 # UI
-## Suggested UI
-![Suggested UI](SUGGESTED_UI.png)
+<details>
+<summary>Suggested UI</summary>
 
-## Actual UI
+![Suggested UI](SUGGESTED_UI.png)
+</details>
+
+<details>
+<summary>Actual UI</summary>
+
 ![Actual UI](UI.png)
+</details>
 
 ## Getting Started: Download Project Repo
 Clone the repo

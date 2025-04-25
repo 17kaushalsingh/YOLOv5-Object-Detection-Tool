@@ -59,25 +59,25 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         public Form1()
         {
             InitializeComponent();
-            
+
             try
             {
                 this.Load += Form1_Load; // Register event handler for form load and load the UI
 
-                // Extract yolov5_env.tar.gz if needed before initializing the detection service
-                bool extractionSuccess = YoloInitialSetup.ExtractEnvironmentIfNeeded();
-                if (!extractionSuccess)
-                {
-                    MessageBox.Show("Failed to set up the Python environment. The application will now close.",
-                        "Environment Setup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    Environment.Exit(1);
-                    return;
-                }
+            // Extract yolov5_env.tar.gz if needed before initializing the detection service
+            bool extractionSuccess = YoloInitialSetup.ExtractEnvironmentIfNeeded();
+            if (!extractionSuccess)
+            {
+                MessageBox.Show("Failed to set up the Python environment. The application will now close.",
+                    "Environment Setup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Environment.Exit(1);
+                return;
+            }
 
-                // Initialize the detection service
-                _detectionService = new YoloDetectionService(AppDomain.CurrentDomain.BaseDirectory);
+            // Initialize the detection service
+            _detectionService = new YoloDetectionService(AppDomain.CurrentDomain.BaseDirectory);
 
-                this.FormClosing += Form1_FormClosing; // Register event handler for form closing
+            this.FormClosing += Form1_FormClosing; // Register event handler for form closing
 
                 // Initialize image files list and current index
                 _imageFiles = new List<string>();
@@ -131,26 +131,26 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         private void Form1_Load(object sender, EventArgs e)
         {
             try
-            {
-                // Set form properties
-                this.Text = "YOLOv5 Object Detection Tool";
-                this.Size = new System.Drawing.Size(1366, 768);
-                this.Font = regularFont;
+        {
+            // Set form properties
+            this.Text = "YOLOv5 Object Detection Tool";
+            this.Size = new System.Drawing.Size(1366, 768);
+            this.Font = regularFont;
+            
+            // Create detection configuration group
+            detectionConfigGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Configuration", new Point(20, 20), new Size(400, 190), boldFont);
+            YoloApplicationUI.InitializeDetectionConfigControls(detectionConfigGroupBox, regularFont, ref selectWeightsFileLabel, ref selectLabelsFileLabel, ref selectWeightsFileComboBox, ref selectLabelsFileComboBox, ref selectImageButton, ref selectFolderButton, ref enableGpuCheckBox, selectImageButton_Click, selectFolderButton_Click);
 
-                // Create detection configuration group
-                detectionConfigGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Configuration", new Point(20, 20), new Size(400, 190), boldFont);
-                YoloApplicationUI.InitializeDetectionConfigControls(detectionConfigGroupBox, regularFont, ref selectWeightsFileLabel, ref selectLabelsFileLabel, ref selectWeightsFileComboBox, ref selectLabelsFileComboBox, ref selectImageButton, ref selectFolderButton, ref enableGpuCheckBox, selectImageButton_Click, selectFolderButton_Click);
+            // Create detection parameters group
+            detectionParametersGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Parameters", new Point(20, 220), new Size(400, 150), boldFont);
+            YoloApplicationUI.InitializeDetectionParametersControls(detectionParametersGroupBox, regularFont, ref imageResolutionLabel, ref confidenceThresholdLabel, ref iouThresholdLabel, ref projectNameLabel, ref imageResolutionHorizontalTextBox, ref imageResolutionVerticalTextBox, ref confidenceThresholdTextBox, ref iouThresholdTextBox, ref projectNameTextBox);
 
-                // Create detection parameters group
-                detectionParametersGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Parameters", new Point(20, 220), new Size(400, 150), boldFont);
-                YoloApplicationUI.InitializeDetectionParametersControls(detectionParametersGroupBox, regularFont, ref imageResolutionLabel, ref confidenceThresholdLabel, ref iouThresholdLabel, ref projectNameLabel, ref imageResolutionHorizontalTextBox, ref imageResolutionVerticalTextBox, ref confidenceThresholdTextBox, ref iouThresholdTextBox, ref projectNameTextBox);
+            // Create server control buttons
+            YoloApplicationUI.CreateServerControlButtons(this, ref startServerButton, ref quitServerButton, ref startDetectionButton, startServerButton_Click, quitServerButton_Click, startDetectionButton_Click);
 
-                // Create server control buttons
-                YoloApplicationUI.CreateServerControlButtons(this, ref startServerButton, ref quitServerButton, ref startDetectionButton, startServerButton_Click, quitServerButton_Click, startDetectionButton_Click);
-
-                // Create image panel group
-                imagePanelGroupBox = YoloApplicationUI.CreateGroupBox(this, "Image Panel", new Point(440, 20), new Size(890, 590), boldFont);
-                YoloApplicationUI.InitializeImagePanelControls(imagePanelGroupBox, boldFont, regularFont, ref inputImageLabel, ref outputImageLabel, ref inputPictureBox, ref outputPictureBox, ref previousButton, ref nextButton, previousButton_Click, nextButton_Click);
+            // Create image panel group
+            imagePanelGroupBox = YoloApplicationUI.CreateGroupBox(this, "Image Panel", new Point(440, 20), new Size(890, 590), boldFont);
+            YoloApplicationUI.InitializeImagePanelControls(imagePanelGroupBox, boldFont, regularFont, ref inputImageLabel, ref outputImageLabel, ref inputPictureBox, ref outputPictureBox, ref previousButton, ref nextButton, previousButton_Click, nextButton_Click);
             }
             catch (Exception ex)
             {
@@ -183,9 +183,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     try
-                    {
-                        // Update path variable
-                        selectedPath = openFileDialog.FileName;
+                {
+                    // Update path variable
+                    selectedPath = openFileDialog.FileName;
                         
                         // Verify file exists
                         if (!File.Exists(selectedPath))
@@ -194,7 +194,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                             return;
                         }
                         
-                        isFolder = false;
+                    isFolder = false;
 
                         // Initialize _imageFiles if needed
                         if (_imageFiles == null)
@@ -202,16 +202,16 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                             _imageFiles = new List<string>();
                         }
 
-                        // Reset navigation
-                        _imageFiles.Clear();
-                        _imageFiles.Add(selectedPath);
-                        _currentImageIndex = 0;
+                    // Reset navigation
+                    _imageFiles.Clear();
+                    _imageFiles.Add(selectedPath);
+                    _currentImageIndex = 0;
 
-                        // Update navigation buttons
-                        UpdateNavigationButtons();
+                    // Update navigation buttons
+                    UpdateNavigationButtons();
 
-                        // Load and display the selected image
-                        LoadAndDisplayInputImage(selectedPath);
+                    // Load and display the selected image
+                    LoadAndDisplayInputImage(selectedPath);
 
                         // Reset detection completed flag
                         _detectionCompleted = false;
@@ -231,9 +231,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 if (folderDialog.ShowDialog() == DialogResult.OK)
                 {
                     try
-                    {
-                        // Update path variable
-                        selectedPath = folderDialog.SelectedPath;
+                {
+                    // Update path variable
+                    selectedPath = folderDialog.SelectedPath;
                         
                         // Verify directory exists
                         if (!Directory.Exists(selectedPath))
@@ -242,32 +242,32 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                             return;
                         }
                         
-                        isFolder = true;
-                        
-                        // Load all image files from the folder
-                        LoadImagesFromFolder(selectedPath);
+                    isFolder = true;
+                    
+                    // Load all image files from the folder
+                    LoadImagesFromFolder(selectedPath);
                         
                         // Initialize _imageFiles if needed
                         if (_imageFiles == null)
                         {
                             _imageFiles = new List<string>();
                         }
-                        
-                        // Update input image label
+                    
+                    // Update input image label
                         if (inputImageLabel != null)
                         {
-                            inputImageLabel.Text = $"Input Folder: {Path.GetFileName(selectedPath)}";
+                    inputImageLabel.Text = $"Input Folder: {Path.GetFileName(selectedPath)}";
                         }
 
-                        // Display the first image if any
-                        if (_imageFiles.Count > 0)
-                        {
-                            _currentImageIndex = 0;
-                            LoadAndDisplayInputImage(_imageFiles[_currentImageIndex]);
-                        }
-                        else
-                        {
-                            MessageBox.Show("No image files found in the selected folder.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    // Display the first image if any
+                    if (_imageFiles.Count > 0)
+                    {
+                        _currentImageIndex = 0;
+                        LoadAndDisplayInputImage(_imageFiles[_currentImageIndex]);
+                    }
+                    else
+                    {
+                        MessageBox.Show("No image files found in the selected folder.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             
                             // Clear picture boxes if no images found
                             if (inputPictureBox != null)
@@ -283,8 +283,8 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                         // Reset detection completed flag
                         _detectionCompleted = false;
 
-                        // Update navigation buttons
-                        UpdateNavigationButtons();
+                    // Update navigation buttons
+                    UpdateNavigationButtons();
                     }
                     catch (Exception ex)
                     {
@@ -311,7 +311,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             _imageFiles.Clear();
             
             string[] imageExtensions = { ".jpg", ".jpeg", ".png", ".bmp" };
-            
+
             try
             {
                 foreach (string ext in imageExtensions)
@@ -325,7 +325,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 MessageBox.Show($"Error loading images from folder: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
+        
         private void UpdateNavigationButtons()
         {
             // Ensure the buttons exist
@@ -360,18 +360,18 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 return;
             }
 
-            _currentImageIndex--;
-            
-            // Load the input image
-            LoadAndDisplayInputImage(_imageFiles[_currentImageIndex]);
-            
-            // If detection has been completed, load corresponding output image
-            if (_detectionCompleted)
-            {
-                LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
-            }
-            
-            UpdateNavigationButtons();
+                _currentImageIndex--;
+                
+                // Load the input image
+                LoadAndDisplayInputImage(_imageFiles[_currentImageIndex]);
+                
+                // If detection has been completed, load corresponding output image
+                if (_detectionCompleted)
+                {
+                    LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
+                }
+                
+                UpdateNavigationButtons();
         }
         
         private void nextButton_Click(object sender, EventArgs e)
@@ -382,18 +382,18 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 return;
             }
 
-            _currentImageIndex++;
-            
-            // Load the input image
-            LoadAndDisplayInputImage(_imageFiles[_currentImageIndex]);
-            
-            // If detection has been completed, load corresponding output image
-            if (_detectionCompleted)
-            {
-                LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
-            }
-            
-            UpdateNavigationButtons();
+                _currentImageIndex++;
+                
+                // Load the input image
+                LoadAndDisplayInputImage(_imageFiles[_currentImageIndex]);
+                
+                // If detection has been completed, load corresponding output image
+                if (_detectionCompleted)
+                {
+                    LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
+                }
+                
+                UpdateNavigationButtons();
         }
 
         private void LoadAndDisplayInputImage(string imagePath)
@@ -417,22 +417,22 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 // Display input image in input picture box
                 if (inputPictureBox != null)
                 {
-                    inputPictureBox.Image = inputImage;
-                    inputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
-                    inputPictureBox.Refresh();
+                inputPictureBox.Image = inputImage;
+                inputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                inputPictureBox.Refresh();
                 }
 
                 // If detection hasn't been completed, show input image in output box too
                 if (!_detectionCompleted || outputImage == null)
                 {
                     if (outputPictureBox != null && inputImage != null)
-                    {
-                        outputPictureBox.Image = inputImage;
-                        outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
-                        outputPictureBox.Refresh();
+                {
+                    outputPictureBox.Image = inputImage;
+                    outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                    outputPictureBox.Refresh();
                         if (outputImageLabel != null)
                         {
-                            outputImageLabel.Text = "Output Image (Showing Input - Run Detection)";
+                    outputImageLabel.Text = "Output Image (Showing Input - Run Detection)";
                         }
                     }
                 }
@@ -440,7 +440,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 // Update input image label with filename
                 if (inputImageLabel != null)
                 {
-                    inputImageLabel.Text = $"Input Image: {Path.GetFileName(imagePath)}";
+                inputImageLabel.Text = $"Input Image: {Path.GetFileName(imagePath)}";
                 }
             }
             catch (Exception ex)
@@ -481,15 +481,15 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     // Display the output image
                     if (outputPictureBox != null)
                     {
-                        outputPictureBox.Image = outputImage;
-                        outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
-                        outputPictureBox.Refresh();
+                    outputPictureBox.Image = outputImage;
+                    outputPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                    outputPictureBox.Refresh();
                     }
                     
                     // Update the output image label
                     if (outputImageLabel != null)
                     {
-                        outputImageLabel.Text = $"Output Image: {filename}";
+                    outputImageLabel.Text = $"Output Image: {filename}";
                     }
                 }
                 else
@@ -497,13 +497,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     // If output image doesn't exist, show input image instead
                     if (outputPictureBox != null && inputImage != null)
                     {
-                        outputPictureBox.Image = inputImage;
-                        outputPictureBox.Refresh();
+                    outputPictureBox.Image = inputImage;
+                    outputPictureBox.Refresh();
                     }
                     
                     if (outputImageLabel != null)
                     {
-                        outputImageLabel.Text = "Output Image Not Found";
+                    outputImageLabel.Text = "Output Image Not Found";
                     }
                 }
             }
@@ -513,13 +513,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 
                 if (outputPictureBox != null && inputImage != null)
                 {
-                    outputPictureBox.Image = inputImage;
-                    outputPictureBox.Refresh();
+                outputPictureBox.Image = inputImage;
+                outputPictureBox.Refresh();
                 }
                 
                 if (outputImageLabel != null)
                 {
-                    outputImageLabel.Text = "Error Loading Output Image";
+                outputImageLabel.Text = "Error Loading Output Image";
                 }
             }
         }
@@ -747,9 +747,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                         
                         // Load the output image if we have valid image files
                         if (_imageFiles != null && _imageFiles.Count > 0 && _currentImageIndex >= 0 && _currentImageIndex < _imageFiles.Count)
-                        {
-                            LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
-                        }
+                                {
+                                    LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
+                                }
                         else
                         {
                             MessageBox.Show("No images to display after detection.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -786,9 +786,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                         
                         // Load the output image if we have valid image files
                         if (_imageFiles != null && _imageFiles.Count > 0 && _currentImageIndex >= 0 && _currentImageIndex < _imageFiles.Count)
-                        {
-                            LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
-                        }
+                                {
+                                    LoadAndDisplayOutputImage(_imageFiles[_currentImageIndex]);
+                                }
                         else
                         {
                             MessageBox.Show("No image to display after detection.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -811,10 +811,10 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 this.Cursor = Cursors.Default;
                 if (startDetectionButton != null)
                 {
-                    startDetectionButton.Enabled = true;
-                    startDetectionButton.Text = "► Start Detection";
-                }
+                startDetectionButton.Enabled = true;
+                startDetectionButton.Text = "► Start Detection";
             }
+        }
         }
 
         private void InitializeOutputDirectory()
@@ -828,13 +828,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 
                 // Create the detections directory if it doesn't exist
                 if (!Directory.Exists(detectionsDirectory))
-                {
+            {
                     Directory.CreateDirectory(detectionsDirectory);
                 }
                 
                 // Create project folder with timestamp
                 _outputDirectory = Path.Combine(detectionsDirectory, $"Project_{timestamp}");
-                
+                    
                 // Create the project directory if it doesn't exist
                 if (!Directory.Exists(_outputDirectory))
                 {
