@@ -1,9 +1,9 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+
 namespace Test_Software_AI_Automatic_Cleaning_Machine
 {
-    using System;
-    using System.Drawing;
-    using System.Windows.Forms;
-
     /// <summary>
     /// Provides UI component creation and management for the YOLO Object Detection application.
     /// This utility class encapsulates the creation and configuration of various UI elements
@@ -117,7 +117,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             };
             selectImageButton.Click += selectImageButtonClickHandler;
             parentGroup.Controls.Add(selectImageButton);
-            
+
             // Select Folder Button - For selecting a folder of images for batch detection
             selectFolderButton = new Button
             {
@@ -288,7 +288,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             startServerButton.FlatAppearance.BorderColor = Color.Black;
             startServerButton.Click += startServerButtonClickHandler;
             parent.Controls.Add(startServerButton);
-            
+
             // Stop Server Button - Red, right-positioned, initially disabled
             quitServerButton = new Button
             {
@@ -304,7 +304,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             quitServerButton.FlatAppearance.BorderColor = Color.Black;
             quitServerButton.Click += quitServerButtonClickHandler;
             parent.Controls.Add(quitServerButton);
-            
+
             // Start Detection Button - Blue, full width, initially disabled
             startDetectionButton = new Button
             {
@@ -381,7 +381,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 BackColor = Color.WhiteSmoke
             };
             parentGroup.Controls.Add(outputPictureBox);
-            
+
             // Previous Button - Navigation for batch processing, initially disabled
             previousButton = new Button
             {
@@ -393,7 +393,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             };
             previousButton.Click += previousButtonClickHandler;
             parentGroup.Controls.Add(previousButton);
-            
+
             // Next Button - Navigation for batch processing, initially disabled
             nextButton = new Button
             {
