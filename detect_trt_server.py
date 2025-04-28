@@ -1,3 +1,23 @@
+"""
+YOLOv5 TensorRT Inference Server
+
+This module provides a high-performance inference server for YOLOv5 object detection using TensorRT.
+It enables faster inference by leveraging NVIDIA GPU acceleration and the TensorRT optimization framework.
+
+The server loads a TensorRT engine once and keeps it in memory for multiple inference requests,
+making it efficient for processing multiple images without reloading the model. This implementation
+is specifically designed for GPU inference and provides better performance than the PyTorch version.
+
+Key features:
+- Optimized TensorRT-based inference pipeline
+- Interactive command-line interface for image processing
+- Single image and batch folder processing capabilities
+- Consolidated CSV output with detection results
+- Both normalized and pixel-based detection coordinates
+- Proper CUDA resource management
+- Graceful shutdown with signal handling
+"""
+
 import os
 import sys
 import tensorrt as trt
