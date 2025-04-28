@@ -1,3 +1,17 @@
+"""
+YOLOv5 Detection Comparison Utility
+
+This utility script compares detection results by placing images from two different
+folders side by side. It's useful for visually comparing different model versions,
+different confidence thresholds, or different post-processing methods.
+
+The script matches images by filename, resizes them to a common height while
+maintaining aspect ratio, and creates a combined view for easy comparison.
+
+Usage:
+    Run the script directly and follow the prompts to specify input and output folders.
+"""
+
 import os
 from PIL import Image, ImageDraw, ImageFont
 
@@ -27,6 +41,7 @@ def compare_images(folder1, folder2, save_folder):
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
 
+    # Get sorted lists of .jpg images from both folders
     images1 = sorted([img for img in os.listdir(folder1) if img.lower().endswith('.jpg')])
     images2 = sorted([img for img in os.listdir(folder2) if img.lower().endswith('.jpg')])
 
@@ -35,6 +50,7 @@ def compare_images(folder1, folder2, save_folder):
             img1_path = os.path.join(folder1, img_name)
             img2_path = os.path.join(folder2, img_name)
 
+            # Open both images
             img1 = Image.open(img1_path)
             img2 = Image.open(img2_path)
 
@@ -49,6 +65,7 @@ def compare_images(folder1, folder2, save_folder):
             combined_height = img1.size[1]
             combined_img = Image.new('RGB', (combined_width, combined_height), (255, 255, 255))
 
+            # Paste both images side by side
             combined_img.paste(img1, (0, 0))
             combined_img.paste(img2, (img1.size[0], 0))
 
@@ -57,9 +74,11 @@ def compare_images(folder1, folder2, save_folder):
             combined_img.save(save_path)
 
 if __name__ == "__main__":
+    # Get input parameters from user
     folder_1 = input("Enter the path to the first folder (e.g., Detections/yolov5_custom): ")
     folder_2 = input("Enter the path to the second folder (e.g., Detections/yolov5_real): ")
     save_folder = input("Enter the path to the folder where you want to save the combined images: ")
 
+    # Run the comparison function
     compare_images(folder_1, folder_2, save_folder)
     print(f"Images compared and saved in folder: {save_folder}")

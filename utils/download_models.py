@@ -1,3 +1,16 @@
+"""
+YOLOv5 Model Downloader
+
+This utility script downloads pre-trained YOLOv5 models and configuration files from Google Drive.
+It downloads various formats including PyTorch (.pt), ONNX, and TensorRT engine files
+for the PETRIS dataset.
+
+The script will:
+1. Prompt the user for a directory to save the files
+2. Check if each file already exists (to avoid re-downloading)
+3. Download missing files using the gdown library for Google Drive access
+"""
+
 import gdown
 import os
 
