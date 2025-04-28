@@ -21,7 +21,7 @@
 
 ## Future Tasks
 1. ~~Automatic environment setup~~
-2. Craete a docker image to run the application in containerized manner
+2. Create a docker image to run the application in containerized manner
 3. Add code for FP16 inferences
 4. Minimize the python environment size as much as possible
 5. Add delay after starting the server to ensure detection happens smoothly

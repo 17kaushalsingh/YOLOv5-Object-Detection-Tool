@@ -1,3 +1,0 @@
-# Get Anaconda Dependencies
-
-
