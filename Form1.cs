@@ -18,6 +18,16 @@ using Test_Software_AI_Automatic_Cleaning_Machine;
 
 namespace Test_Software_AI_Automatic_Cleaning_Machine
 {
+    /// <summary>
+    /// Main form for the YOLOv5 Object Detection Tool.
+    /// This class provides a graphical user interface for interacting with the YOLOv5 detection engine.
+    /// It allows users to:
+    /// - Select model weights and configuration files
+    /// - Configure detection parameters like confidence threshold and resolution
+    /// - Process single images or entire folders
+    /// - View and navigate through detection results
+    /// - Start and stop the detection server
+    /// </summary>
     public partial class Form1 : Form
     {
         // 1. Detection Configuration Items: Weights and Labels Files, Source Image Selection, Hardware Acceleration Settings
@@ -56,6 +66,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         private bool _detectionCompleted = false; // Flag to track if detection has been completed
         private string _outputDirectory = string.Empty; // Store the output directory for detected images
 
+        /// <summary>
+        /// Initializes a new instance of the main form for YOLOv5 object detection.
+        /// Sets up the Python environment, initializes the detection service,
+        /// creates UI components, and registers event handlers.
+        /// </summary>
         public Form1()
         {
             InitializeComponent();
@@ -80,6 +95,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             this.FormClosing += Form1_FormClosing;
         }
 
+        /// <summary>
+        /// Initializes all UI components for the form.
+        /// Creates and configures the detection configuration panel, parameters panel,
+        /// server control buttons, and image display panels.
+        /// </summary>
         private void InitializeUI()
         {
             // Create detection configuration group
@@ -98,6 +118,12 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             YoloApplicationUI.InitializeImagePanelControls(imagePanelGroupBox, boldFont, regularFont, ref inputImageLabel, ref outputImageLabel, ref inputPictureBox, ref outputPictureBox, ref previousButton, ref nextButton, previousButton_Click, nextButton_Click);
         }
 
+        /// <summary>
+        /// Handles the form's Load event.
+        /// Sets the form title, size, and font.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
         private void Form1_Load(object sender, EventArgs e)
         {
 
@@ -107,6 +133,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             this.Font = regularFont;
         }
 
+        /// <summary>
+        /// Handles the form's FormClosing event.
+        /// Cleans up resources, stops the detection server if running,
+        /// and ensures proper shutdown of the detection service.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Form closing event arguments</param>
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             // Clean up resources when the form is closing
@@ -122,6 +155,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             _detectionService.Cleanup();
         }
 
+        /// <summary>
+        /// Handles the Select Image button click event.
+        /// Opens a file dialog for selecting an image, loads the selected image,
+        /// and updates the UI accordingly.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
         private void selectImageButton_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
@@ -152,6 +192,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Handles the Select Folder button click event.
+        /// Opens a folder browse dialog, loads all images from the selected folder,
+        /// displays the first image, and sets up navigation for browsing through images.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
         private void selectFolderButton_Click(object sender, EventArgs e)
         {
             using (FolderBrowserDialog folderDialog = new FolderBrowserDialog())
@@ -185,6 +232,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Loads all supported image files from the specified folder.
+        /// Adds found images to the _imageFiles list for navigation and processing.
+        /// </summary>
+        /// <param name="folderPath">Path to the folder containing images to load</param>
         private void LoadImagesFromFolder(string folderPath)
         {
             _imageFiles.Clear();
@@ -205,12 +257,23 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Updates the enabled state of the navigation buttons (previous/next)
+        /// based on the current image index and the total number of images.
+        /// </summary>
         private void UpdateNavigationButtons()
         {
             previousButton.Enabled = _imageFiles.Count > 1 && _currentImageIndex > 0;
             nextButton.Enabled = _imageFiles.Count > 1 && _currentImageIndex < _imageFiles.Count - 1;
         }
 
+        /// <summary>
+        /// Handles the Previous button click event.
+        /// Navigates to the previous image in the collection and updates both
+        /// input and output displays if detection has been completed.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
         private void previousButton_Click(object sender, EventArgs e)
         {
             if (_currentImageIndex > 0)
@@ -230,6 +293,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Handles the Next button click event.
+        /// Navigates to the next image in the collection and updates both
+        /// input and output displays if detection has been completed.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
         private void nextButton_Click(object sender, EventArgs e)
         {
             if (_currentImageIndex < _imageFiles.Count - 1)
@@ -249,6 +319,12 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Loads and displays an input image in the input picture box.
+        /// Also updates the output picture box with the same image if detection
+        /// hasn't been run yet.
+        /// </summary>
+        /// <param name="imagePath">Path to the image file to load and display</param>
         private void LoadAndDisplayInputImage(string imagePath)
         {
             if (inputImage != null) // Dispose existing images if any
@@ -284,6 +360,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Loads and displays the corresponding output image (with detections)
+        /// for the given input image path.
+        /// </summary>
+        /// <param name="inputImagePath">Path to the original input image</param>
         private void LoadAndDisplayOutputImage(string inputImagePath)
         {
             // Clean up previous output image if it exists
@@ -330,6 +411,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Handles the Start Server button click event.
+        /// Validates model selection, starts the YOLOv5 detection server,
+        /// and updates UI state accordingly.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
         private void startServerButton_Click(object sender, EventArgs e)
         {
             try
@@ -391,6 +479,10 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Resets the Start Server button to its initial state.
+        /// Used when the server fails to start or encounters an error.
+        /// </summary>
         private void ResetServerButtonState()
         {
             startServerButton.Enabled = true;
@@ -398,6 +490,12 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             this.Cursor = Cursors.Default;
         }
 
+        /// <summary>
+        /// Handles the Stop Server button click event.
+        /// Stops the YOLOv5 detection server and updates UI state accordingly.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
         private void quitServerButton_Click(object sender, EventArgs e)
         {
             try
@@ -443,6 +541,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Enables or disables the configuration controls based on server state.
+        /// Locks controls when the server is running to prevent changing parameters.
+        /// </summary>
+        /// <param name="enabled">True to enable controls, False to disable</param>
         private void EnableConfigControls(bool enabled)
         {
             // Enable/disable configuration controls
@@ -456,6 +559,12 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             enableGpuCheckBox.Enabled = enabled;
         }
 
+        /// <summary>
+        /// Handles the Start Detection button click event.
+        /// Sends the selected image or folder for processing by the YOLOv5 detection server.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
         private void startDetectionButton_Click(object sender, EventArgs e)
         {
             try

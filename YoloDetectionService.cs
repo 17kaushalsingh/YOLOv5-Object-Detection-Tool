@@ -10,6 +10,11 @@ using System.Windows.Forms;
 
 namespace Test_Software_AI_Automatic_Cleaning_Machine
 {
+    /// <summary>
+    /// Service class that manages communication with the Python-based YOLOv5 detection server.
+    /// This class handles starting and stopping the Python server process, managing file paths,
+    /// and sending detection commands for both single images and folders of images.
+    /// </summary>
     public class YoloDetectionService
     {
         private string _modelsPath, _scriptPath, _pythonPath, _detectionsDirectory;
@@ -17,6 +22,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         private bool _isServerRunning = false, _isProcessingDetection = false;
         private string _tempDirectory = null;
 
+        /// <summary>
+        /// Initializes a new instance of the YoloDetectionService with paths configured
+        /// relative to the specified base path.
+        /// </summary>
+        /// <param name="basePath">The base directory path for the application</param>
         public YoloDetectionService(string basePath)
         {
             _modelsPath = Path.Combine(basePath, "Models");
@@ -36,8 +46,19 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Gets a value indicating whether the detection server is currently running.
+        /// </summary>
         public bool IsServerRunning => _isServerRunning;
 
+        /// <summary>
+        /// Validates that all necessary files exist and conditions are met to start detection.
+        /// Checks for existence of model weights, labels file, and ensures output directory doesn't exist.
+        /// </summary>
+        /// <param name="selectWeightsFileComboBox">ComboBox containing selected weights file</param>
+        /// <param name="selectLabelsFileComboBox">ComboBox containing selected labels file</param>
+        /// <param name="projectName">Name of the project/folder for storing detection results</param>
+        /// <returns>True if all conditions are met to start detection, False otherwise</returns>
         public bool CanStartDetection(ComboBox selectWeightsFileComboBox, ComboBox selectLabelsFileComboBox, string projectName)
         {
             // Make sure the user selected a weights file
@@ -87,6 +108,19 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             return true;
         }
 
+        /// <summary>
+        /// Starts the Python-based YOLOv5 detection server process with the specified parameters.
+        /// </summary>
+        /// <param name="modelFile">Name of the model weights file</param>
+        /// <param name="yamlFile">Name of the YAML file containing class labels</param>
+        /// <param name="enableGpu">Whether to enable GPU acceleration</param>
+        /// <param name="horizontalResolution">Horizontal resolution for input images</param>
+        /// <param name="verticalResolution">Vertical resolution for input images</param>
+        /// <param name="confidenceThreshold">Confidence threshold for detections (0-1)</param>
+        /// <param name="iouThreshold">IoU threshold for non-maximum suppression (0-1)</param>
+        /// <param name="projectName">Name for the output directory</param>
+        /// <param name="errorMessage">Output parameter for error messages if server fails to start</param>
+        /// <returns>True if server started successfully, False otherwise with error in errorMessage</returns>
         public bool StartServer(string modelFile, string yamlFile, bool enableGpu, string horizontalResolution, string verticalResolution, string confidenceThreshold, string iouThreshold, string projectName, out string errorMessage)
         {
             errorMessage = string.Empty;
@@ -143,11 +177,23 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Event handler for when the server process exits.
+        /// Updates the server running status to false.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
         private void ServerProcess_Exited(object sender, EventArgs e)
         {
             _isServerRunning = false;
         }
 
+        /// <summary>
+        /// Event handler for receiving output data from the server process.
+        /// Monitors for command prompt indicators to determine when commands are complete.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Data received event arguments</param>
         private void ServerProcess_OutputDataReceived(object sender, DataReceivedEventArgs e)
         {
             if (!string.IsNullOrEmpty(e.Data))
@@ -163,6 +209,12 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Stops the running YOLOv5 detection server process.
+        /// Sends a quit command and waits for process to exit gracefully or kills it after timeout.
+        /// </summary>
+        /// <param name="errorMessage">Output parameter for error messages if server fails to stop</param>
+        /// <returns>True if server stopped successfully, False otherwise with error in errorMessage</returns>
         public bool StopServer(out string errorMessage)
         {
             errorMessage = string.Empty;
@@ -198,6 +250,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Sends a command to the server to process a single image with object detection.
+        /// Copies the image to a temporary location and sends the path to the server.
+        /// </summary>
+        /// <param name="imagePath">Path to the image file to process</param>
+        /// <param name="errorMessage">Output parameter for error messages if detection fails</param>
+        /// <returns>True if command was sent successfully, False otherwise with error in errorMessage</returns>
         public bool DetectImage(string imagePath, out string errorMessage)
         {
             errorMessage = string.Empty;
@@ -238,6 +297,13 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Sends a command to the server to process a folder of images with object detection.
+        /// Copies all images to a temporary folder and sends the folder path to the server.
+        /// </summary>
+        /// <param name="folderPath">Path to the folder containing images to process</param>
+        /// <param name="errorMessage">Output parameter for error messages if detection fails</param>
+        /// <returns>True if command was sent successfully, False otherwise with error in errorMessage</returns>
         public bool DetectFolder(string folderPath, out string errorMessage)
         {
             errorMessage = string.Empty;
@@ -302,6 +368,10 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        /// <summary>
+        /// Performs cleanup of resources used by the service.
+        /// Stops the server if it's running and removes temporary files.
+        /// </summary>
         public void Cleanup()
         {
             try
