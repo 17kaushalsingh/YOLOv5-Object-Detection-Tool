@@ -1,3 +1,5 @@
+# To replicate this environment, run: conda env create -f environment.yml
+
 name: yolov5
 
 channels:

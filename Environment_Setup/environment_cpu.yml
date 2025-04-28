@@ -1,4 +1,4 @@
-# conda env create -f yolov5.yml
+# conda env create -f environment_cpu.yml
 
 name: yolov5
 
