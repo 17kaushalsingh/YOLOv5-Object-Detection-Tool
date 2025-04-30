@@ -534,6 +534,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 _serverReadyTimer.Stop(); // Stop checking for server readiness
                 Application.DoEvents();
 
+                // Store the project name before stopping server
+                string projectName = projectNameTextBox.Text;
+
                 // Stop the detection server
                 string errorMessage;
                 bool success = _detectionService.StopServer(out errorMessage);
@@ -548,6 +551,17 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
                     // Unlock configuration controls
                     EnableConfigControls(true);
+
+                    // Show results location message if detection was completed
+                    if (_detectionCompleted)
+                    {
+                        string resultsPath = Path.Combine("Detections", projectName);
+                        MessageBox.Show(
+                            $"Detection results have been saved in:\n{resultsPath}\n\nResults include:\n- Detected images with bounding boxes\n- CSV file with detection details",
+                            "Detection Complete",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                    }
                 }
                 else
                 {
