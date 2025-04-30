@@ -21,7 +21,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         private Process _serverProcess;
         private bool _isServerRunning = false, _isProcessingDetection = false;
         private bool _isServerReady = false;
-        private string _tempDirectory = null;
         private string _currentProjectDir = null; // Store current project directory path
 
         /// <summary>
@@ -40,12 +39,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
             basePath = Path.GetFullPath(basePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             _pythonPath = Path.Combine(basePath, "yolov5_env", "python.exe");
-
-            _tempDirectory = Path.Combine(basePath, "Temp");
-            if (!Directory.Exists(_tempDirectory))
-            {
-                Directory.CreateDirectory(_tempDirectory);
-            }
         }
 
         /// <summary>
@@ -301,7 +294,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
         /// <summary>
         /// Sends a command to the server to process a single image with object detection.
-        /// Copies the image to a temporary location and sends the path to the server.
         /// </summary>
         /// <param name="imagePath">Path to the image file to process</param>
         /// <param name="errorMessage">Output parameter for error messages if detection fails</param>
@@ -325,13 +317,8 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
                 _isProcessingDetection = true;
 
-                string originalFilename = Path.GetFileName(imagePath);
-
-                string tempFilePath = Path.Combine(_tempDirectory, originalFilename);
-
-                File.Copy(imagePath, tempFilePath, true);
-
-                string simplePath = tempFilePath.Replace('\\', '/');
+                // Convert path to use forward slashes for Python
+                string simplePath = imagePath.Replace('\\', '/');
 
                 string command = $"--image {simplePath}";
                 _serverProcess.StandardInput.WriteLine(command);
@@ -348,7 +335,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
         /// <summary>
         /// Sends a command to the server to process a folder of images with object detection.
-        /// Copies all images to a temporary folder and sends the folder path to the server.
         /// </summary>
         /// <param name="folderPath">Path to the folder containing images to process</param>
         /// <param name="errorMessage">Output parameter for error messages if detection fails</param>
@@ -372,43 +358,14 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
                 _isProcessingDetection = true;
 
-                string tempFolderPath = Path.Combine(_tempDirectory, "temp_folder");
+                // Convert path to use forward slashes for Python
+                string simplePath = folderPath.Replace('\\', '/');
 
-                if (Directory.Exists(tempFolderPath))
-                {
-                    Directory.Delete(tempFolderPath, true);
-                }
-                Directory.CreateDirectory(tempFolderPath);
+                string command = $"--folder {simplePath}";
+                _serverProcess.StandardInput.WriteLine(command);
+                _serverProcess.StandardInput.Flush();
 
-                string[] imageExtensions = { "*.jpg", "*.jpeg", "*.png", "*.bmp" };
-                int filesCopied = 0;
-
-                foreach (string extension in imageExtensions)
-                {
-                    foreach (string file in Directory.GetFiles(folderPath, extension))
-                    {
-                        string filename = Path.GetFileName(file);
-                        string destFile = Path.Combine(tempFolderPath, filename);
-                        File.Copy(file, destFile);
-                        filesCopied++;
-                    }
-                }
-
-                if (filesCopied > 0)
-                {
-                    string simplePath = tempFolderPath.Replace('\\', '/');
-
-                    string command = $"--folder {simplePath}";
-                    _serverProcess.StandardInput.WriteLine(command);
-                    _serverProcess.StandardInput.Flush();
-
-                    return true;
-                }
-                else
-                {
-                    errorMessage = "No image files found in the specified folder.";
-                    return false;
-                }
+                return true;
             }
             catch (Exception ex)
             {
@@ -419,7 +376,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
         /// <summary>
         /// Performs cleanup of resources used by the service.
-        /// Stops the server if it's running and removes temporary files.
+        /// Stops the server if it's running.
         /// </summary>
         public void Cleanup()
         {
@@ -431,18 +388,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 }
 
                 _currentProjectDir = null;
-
-                try
-                {
-                    if (Directory.Exists(_tempDirectory))
-                    {
-                        Directory.Delete(_tempDirectory, true);
-                    }
-                }
-                catch (Exception)
-                {
-                    // Silently ignore temp directory cleanup issues
-                }
             }
             catch (Exception)
             {
