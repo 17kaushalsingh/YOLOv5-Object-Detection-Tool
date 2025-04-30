@@ -10,9 +10,10 @@ The YOLOv5 Inference Server is a Python-based tool that loads a YOLOv5 model and
 - **Efficient Processing**: Loads the YOLOv5 model once and keeps it in memory
 - **Batch Processing**: Process entire folders of images with a single command
 - **CSV Output**: Generates a consolidated CSV file with detection results in customized column order
-- **GPU Support**: Optional GPU acceleration for faster inference
+- **Automatic GPU Detection**: Automatically uses GPU if available for faster inference
 - **Proper Resource Management**: Ensures CUDA resources are properly cleaned up
 - **Organized Output**: Results stored in project-specific directories with proper naming conventions
+- **Graceful Shutdown**: Proper cleanup on exit using signal handlers and atexit registration
 
 ## Requirements
 
@@ -45,7 +46,6 @@ Required arguments:
 - `--labels`: Path to the YAML file containing class labels
 
 Optional arguments:
-- `--enable_gpu`: Enable GPU acceleration if available (default: False)
 - `--input_shape`: Model input shape as comma-separated values (default: 1,3,1280,1280)
 - `--conf_thresh`: Confidence threshold for detections (default: 0.25)
 - `--iou_thresh`: IoU threshold for NMS (default: 0.45)
@@ -64,7 +64,7 @@ Once the server is running, the following commands are available:
 #### Start the server with a custom model:
 
 ```bash
-python server.py --model weights/custom_model.pt --labels data/custom.yaml --enable_gpu
+python server.py --model weights/custom_model.pt --labels data/custom.yaml
 ```
 
 #### Process a single image:
@@ -122,6 +122,7 @@ This class handles the low-level operations of model loading, inference, and res
 - Processing folders of images
 - Saving labeled images with detection boxes
 - Consolidating detection results and saving to CSV
+- Proper resource cleanup and memory management
 
 ### YOLOv5Server
 
@@ -131,6 +132,7 @@ This class provides the command-line interface and user interaction. It includes
 - Signal handling for graceful shutdown
 - Methods for processing user commands
 - Resource cleanup on exit
+- Error handling and exception management
 
 ## Advanced Usage
 
@@ -166,6 +168,26 @@ The server implements proper resource management to prevent memory leaks and ens
 - PyTorch models are unloaded when the server exits
 - Signal handlers ensure proper cleanup on keyboard interrupts
 - The `atexit` module is used to register cleanup functions even if the program crashes
+- Exception handling ensures cleanup occurs even during errors
+
+## Error Handling
+
+The server implements comprehensive error handling:
+
+1. **Command Processing**:
+   - Invalid commands are silently ignored
+   - Missing arguments are handled gracefully
+   - File/folder existence is verified before processing
+
+2. **Inference Errors**:
+   - Individual image processing errors are caught and logged
+   - Batch processing continues even if individual images fail
+   - Traceback information is preserved for debugging
+
+3. **Resource Cleanup**:
+   - Cleanup is guaranteed through try-finally blocks
+   - Multiple cleanup mechanisms (signal handlers, atexit)
+   - Graceful handling of missing resources
 
 ## Troubleshooting
 
@@ -175,7 +197,6 @@ If you encounter GPU memory errors, try:
 1. Reducing the batch size (first value in `--input_shape`)
 2. Reducing the input resolution
 3. Using a smaller YOLOv5 model (e.g., YOLOv5n instead of YOLOv5x)
-4. Setting `--enable_gpu` to False to use CPU inference instead
 
 ### Missing Labels
 

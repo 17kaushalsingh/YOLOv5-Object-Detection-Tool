@@ -21,7 +21,6 @@ The interface is organized into four main sections:
 1. **Detection Configuration** (Top-Left)
    - Model selection (weights and labels files)
    - Input source selection (image or folder)
-   - GPU acceleration toggle
 
 2. **Detection Parameters** (Middle-Left)
    - Image resolution settings
@@ -61,6 +60,7 @@ public Form1()
 - Initializes UI components
 - Calls `YoloInitialSetup.ExtractEnvironmentIfNeeded()` to ensure all dependencies exist
 - Creates an instance of `YoloDetectionService`
+- Initializes server ready timer for monitoring server status
 - Registers event handlers for form load and closing events
 
 #### InitializeUI()
@@ -82,8 +82,16 @@ private void startServerButton_Click(object sender, EventArgs e)
 private void quitServerButton_Click(object sender, EventArgs e)
 ```
 
-- `startServerButton_Click`: Validates settings, starts the Python server, and updates UI state
-- `quitServerButton_Click`: Stops the Python server and restores UI state
+- `startServerButton_Click`: 
+  - Validates settings
+  - Starts the Python server
+  - Updates UI state
+  - Initializes server ready timer
+  - Sets up output directory path
+- `quitServerButton_Click`: 
+  - Stops the Python server
+  - Restores UI state
+  - Shows completion message with results location if detection was successful
 
 #### Image Selection
 
@@ -103,7 +111,10 @@ private void previousButton_Click(object sender, EventArgs e)
 private void nextButton_Click(object sender, EventArgs e)
 ```
 
-- `startDetectionButton_Click`: Sends the selected image or folder for detection
+- `startDetectionButton_Click`: 
+  - Sends the selected image or folder for detection
+  - Handles both single image and folder processing
+  - Updates UI with detection results
 - `previousButton_Click`/`nextButton_Click`: Navigate through images when multiple are loaded
 
 ### Helper Methods
@@ -115,8 +126,14 @@ private void LoadAndDisplayInputImage(string imagePath)
 private void LoadAndDisplayOutputImage(string inputImagePath)
 ```
 
-- `LoadAndDisplayInputImage`: Loads an image into the input picture box
-- `LoadAndDisplayOutputImage`: Loads the corresponding detection result into the output picture box
+- `LoadAndDisplayInputImage`: 
+  - Loads an image into the input picture box
+  - Updates input image label
+  - Handles image disposal
+- `LoadAndDisplayOutputImage`: 
+  - Loads the corresponding detection result
+  - Updates output image label
+  - Handles missing output images gracefully
 
 #### Utility Methods
 
@@ -141,6 +158,7 @@ The form tracks several important state variables:
 - `_currentImageIndex`: Index of the currently displayed image
 - `_detectionCompleted`: Flag indicating if detection has been performed
 - `_outputDirectory`: Path where detection results are stored
+- `_serverReadyTimer`: Timer for monitoring server readiness
 
 ## Resource Management
 
@@ -149,6 +167,7 @@ The form implements careful resource management:
 - `Form1_FormClosing`: Ensures the detection server is properly stopped
 - Image disposal: Previous images are properly disposed before loading new ones
 - Proper exception handling: All operations are wrapped in try-catch blocks
+- Server process cleanup: Ensures proper termination of Python server process
 
 ## Error Handling
 
@@ -158,6 +177,7 @@ The application provides comprehensive error handling:
 - Server communication errors: Displays appropriate messages when server operations fail
 - File access errors: Handles missing or inaccessible files gracefully
 - Detection errors: Reports any issues that occur during the detection process
+- Server readiness monitoring: Handles unexpected server termination
 
 ## User Experience Considerations
 
@@ -167,6 +187,8 @@ The form implements several UX improvements:
 - Button state management: Disables buttons when their operations are not valid
 - Visual feedback: Updates labels to indicate current state and selected items
 - Progress indication: Shows "Starting..." and "Stopping..." during server operations
+- Results notification: Shows completion message with results location
+- Automatic server readiness detection: Monitors server status and updates UI accordingly
 
 ## Dependencies
 

@@ -8,7 +8,7 @@
 2. Start and stop the Python server for object detection
 3. Send detection commands for images and folders
 4. Handle communication between the C# application and Python scripts
-5. Manage temporary files and resources
+5. Monitor server readiness and status
 
 This service enables the application to run YOLOv5 neural networks for object detection without requiring users to install Python or set up dependencies manually.
 
@@ -19,7 +19,8 @@ The service works by:
 2. Starting a Python process that loads YOLOv5 models
 3. Sending commands to the Python process via standard input
 4. Capturing output from the Python process
-5. Managing the lifecycle of the detection server and temporary resources
+5. Monitoring server readiness through project directory creation
+6. Managing the lifecycle of the detection server
 
 ## Detailed Method Breakdown
 
@@ -29,22 +30,26 @@ The service works by:
 public YoloDetectionService(string basePath)
 ```
 
-**Purpose**: Initializes the service with paths to key components and creates the temporary directory.
+**Purpose**: Initializes the service with paths to key components.
 
 **Parameters**:
 - `basePath`: Base directory where the application is running
 
 **Key Operations**:
 - Sets paths for models, Python script, and Python executable
-- Creates a temporary directory for file operations
+- Configures paths with forward slashes for Python compatibility
+- Sets up detections directory path
 
 ### Properties
 
 ```csharp
 public bool IsServerRunning => _isServerRunning;
+public bool IsServerReady => _isServerReady;
 ```
 
-**Purpose**: Provides access to internal state that indicates if the server is currently running.
+**Purpose**: 
+- `IsServerRunning`: Indicates if the server process is currently running
+- `IsServerReady`: Indicates if the server is fully initialized and ready for inference
 
 ### CanStartDetection
 
@@ -63,7 +68,7 @@ public bool CanStartDetection(ComboBox selectWeightsFileComboBox, ComboBox selec
 ### StartServer
 
 ```csharp
-public bool StartServer(string modelFile, string yamlFile, bool enableGpu, string horizontalResolution, 
+public bool StartServer(string modelFile, string yamlFile, string horizontalResolution, 
     string verticalResolution, string confidenceThreshold, string iouThreshold, 
     string projectName, out string errorMessage)
 ```
@@ -73,7 +78,6 @@ public bool StartServer(string modelFile, string yamlFile, bool enableGpu, strin
 **Parameters**:
 - `modelFile`: YOLOv5 model file to use (.pt or .engine)
 - `yamlFile`: Labels/configuration file
-- `enableGpu`: Whether to enable GPU acceleration
 - `horizontalResolution`/`verticalResolution`: Input image dimensions
 - `confidenceThreshold`: Minimum confidence score for detections
 - `iouThreshold`: Intersection over Union threshold for non-max suppression
@@ -82,7 +86,9 @@ public bool StartServer(string modelFile, string yamlFile, bool enableGpu, strin
 
 **Key Operations**:
 - Checks if server is already running
-- Builds the Python command with parameters in a modular way
+- Sets up project directory path
+- Cleans up existing project directory if present
+- Builds the Python command with parameters
 - Starts Python as a subprocess
 - Establishes input/output pipes for communication
 - Sets up event handlers for output and errors
@@ -92,13 +98,15 @@ public bool StartServer(string modelFile, string yamlFile, bool enableGpu, strin
 ```csharp
 private void ServerProcess_Exited(object sender, EventArgs e)
 private void ServerProcess_OutputDataReceived(object sender, DataReceivedEventArgs e)
+private void ServerProcess_ErrorDataReceived(object sender, DataReceivedEventArgs e)
 ```
 
 **Purpose**: Handle events from the Python process.
 
 **Key Operations**:
 - `ServerProcess_Exited`: Updates state when server stops
-- `ServerProcess_OutputDataReceived`: Tracks detection completion status by monitoring command prompt indicators
+- `ServerProcess_OutputDataReceived`: Monitors server output for command completion
+- `ServerProcess_ErrorDataReceived`: Logs server errors for debugging
 
 ### StopServer
 
@@ -113,6 +121,7 @@ public bool StopServer(out string errorMessage)
 - Waits for process to exit
 - Kills process if it doesn't exit cleanly within timeout
 - Cleans up event handlers and resources
+- Resets server state variables
 
 ### DetectImage
 
@@ -129,7 +138,7 @@ public bool DetectImage(string imagePath, out string errorMessage)
 **Key Operations**:
 - Verifies server is running
 - Checks image file exists
-- Creates a temporary copy with original filename
+- Converts path to use forward slashes for Python
 - Sends detection command to Python process
 - Sets processing flag for tracking completion
 
@@ -148,9 +157,9 @@ public bool DetectFolder(string folderPath, out string errorMessage)
 **Key Operations**:
 - Verifies server is running
 - Checks folder exists
-- Creates temporary folder for image copies
-- Copies all images to temp folder
+- Converts path to use forward slashes for Python
 - Sends folder detection command to Python process
+- Sets processing flag for tracking completion
 
 ### Cleanup
 
@@ -162,7 +171,7 @@ public void Cleanup()
 
 **Key Operations**:
 - Stops server if running
-- Deletes temporary directories
+- Resets server state variables
 - Handles cleanup issues silently to avoid unnecessary error messages
 
 ## Member Variables
@@ -174,13 +183,15 @@ public void Cleanup()
 - `_serverProcess`: Reference to the running Python process
 - `_isServerRunning`: Flag indicating if server is active
 - `_isProcessingDetection`: Flag indicating detection in progress
-- `_tempDirectory`: Path for temporary file operations
+- `_isServerReady`: Flag indicating if server is ready for inference
+- `_currentProjectDir`: Path to current project directory for server readiness detection
 
 ## Communication Protocol
 
 The service communicates with the Python script through:
 - Standard input: Sending commands
 - Standard output: Receiving results and status
+- Standard error: Receiving error messages
 
 Commands follow this format:
 - `--image <path>`: Detect objects in a single image
@@ -194,5 +205,7 @@ The service includes comprehensive error handling:
 - Uses out parameters to return detailed error messages
 - Implements graceful process termination with timeout
 - Includes try-catch blocks around all file and process operations
+- Logs server errors for debugging purposes
+- Handles server readiness monitoring failures
 
 This architecture enables reliable object detection within a Windows Forms application without requiring users to manage Python installations or dependencies manually. 

@@ -4,7 +4,7 @@
 
 The `YoloApplicationUI` class provides a comprehensive UI component creation and management system for the YOLO Object Detection application. It encapsulates the creation, configuration, and organization of UI elements into logical groups, making the main application code cleaner and more maintainable.
 
-This utility class follows a modular design pattern where different aspects of the UI are handled by separate methods, each responsible for initializing a specific group of related UI components. The components created include group boxes, labels, combo boxes, text boxes, buttons, checkboxes, and picture boxes for image display.
+This utility class follows a modular design pattern where different aspects of the UI are handled by separate methods, each responsible for initializing a specific group of related UI components. The components created include group boxes, labels, combo boxes, text boxes, buttons, and picture boxes for image display.
 
 ## Key Components
 
@@ -22,7 +22,7 @@ This utility class follows a modular design pattern where different aspects of t
 
 The UI is organized into several logical component groups:
 
-1. **Detection Configuration** - Selection of model weights, labels file, input source, and GPU settings
+1. **Detection Configuration** - Selection of model weights, labels file, and input source
 2. **Detection Parameters** - Configuration of image resolution, confidence threshold, IOU threshold, and project name
 3. **Server Controls** - Buttons for starting/stopping the detection server and initiating detection
 4. **Image Display Panel** - Display areas for input and output images with navigation controls
@@ -55,20 +55,17 @@ public static void InitializeDetectionConfigControls(GroupBox parentGroup, Font 
     ref Label selectWeightsFileLabel, ref Label selectLabelsFileLabel, 
     ref ComboBox selectWeightsFileComboBox, ref ComboBox selectLabelsFileComboBox, 
     ref Button selectImageButton, ref Button selectFolderButton, 
-    ref CheckBox enableGpuCheckBox, EventHandler selectImageButtonClickHandler, 
-    EventHandler selectFolderButtonClickHandler)
+    EventHandler selectImageButtonClickHandler, EventHandler selectFolderButtonClickHandler)
 ```
 
 **Controls Created:**
 - Labels for weights and labels file selection
 - ComboBoxes for selecting model weights and labels files (pre-populated with options)
 - Buttons for selecting image or folder input
-- Checkbox for enabling/disabling GPU acceleration
 
 **Default Settings:**
 - Weights file defaults to "petris_yolov5x_fp32.engine"
 - Labels file defaults to "petris_data.yaml"
-- GPU acceleration is enabled by default
 
 ### InitializeDetectionParametersControls()
 
