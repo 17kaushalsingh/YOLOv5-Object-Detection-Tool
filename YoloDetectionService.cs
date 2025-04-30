@@ -20,7 +20,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         private string _modelsPath, _scriptPath, _pythonPath, _detectionsDirectory;
         private Process _serverProcess;
         private bool _isServerRunning = false, _isProcessingDetection = false;
+        private bool _isServerReady = false;
         private string _tempDirectory = null;
+        private string _currentProjectDir = null; // Store current project directory path
 
         /// <summary>
         /// Initializes a new instance of the YoloDetectionService with paths configured
@@ -47,9 +49,25 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         }
 
         /// <summary>
-        /// Gets a value indicating whether the detection server is currently running.
+        /// Gets a value indicating whether the detection server process is running.
         /// </summary>
         public bool IsServerRunning => _isServerRunning;
+
+        /// <summary>
+        /// Gets a value indicating whether the detection server is fully initialized and ready for inference.
+        /// This checks if the project directory exists, which indicates the server has finished initialization.
+        /// </summary>
+        public bool IsServerReady
+        {
+            get
+            {
+                if (!_isServerRunning || string.IsNullOrEmpty(_currentProjectDir))
+                    return false;
+                
+                // Check if project directory exists, which indicates server is ready
+                return Directory.Exists(_currentProjectDir);
+            }
+        }
 
         /// <summary>
         /// Validates that all necessary files exist and conditions are met to start detection.
@@ -132,9 +150,22 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     return false;
                 }
 
-                // Check if project directory already exists
-                string detectionsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Detections");
-                string projectDir = Path.Combine(detectionsDir, projectName);
+                // Set the expected project directory path
+                _currentProjectDir = Path.Combine(_detectionsDirectory, projectName);
+                
+                // If directory already exists, delete it to avoid false readiness detection
+                if (Directory.Exists(_currentProjectDir))
+                {
+                    try
+                    {
+                        Directory.Delete(_currentProjectDir, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        errorMessage = $"Failed to clean up existing project directory: {ex.Message}";
+                        return false;
+                    }
+                }
 
                 string modelPath = Path.Combine(_modelsPath, modelFile);
                 modelPath = modelPath.Replace('\\', '/');
@@ -163,6 +194,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 _serverProcess.EnableRaisingEvents = true;
                 _serverProcess.Exited += ServerProcess_Exited;
                 _serverProcess.OutputDataReceived += ServerProcess_OutputDataReceived;
+                _serverProcess.ErrorDataReceived += ServerProcess_ErrorDataReceived;
                 _serverProcess.Start();
                 _serverProcess.BeginOutputReadLine();
                 _serverProcess.BeginErrorReadLine();
@@ -173,19 +205,10 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             catch (Exception ex)
             {
                 errorMessage = $"Error starting server: {ex.Message}";
+                _isServerRunning = false;
+                _currentProjectDir = null;
                 return false;
             }
-        }
-
-        /// <summary>
-        /// Event handler for when the server process exits.
-        /// Updates the server running status to false.
-        /// </summary>
-        /// <param name="sender">The event sender</param>
-        /// <param name="e">Event arguments</param>
-        private void ServerProcess_Exited(object sender, EventArgs e)
-        {
-            _isServerRunning = false;
         }
 
         /// <summary>
@@ -201,12 +224,36 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 // Process server command prompt indicator - indicates server is ready for next command
                 if (e.Data.Contains(">"))
                 {
+                    _isServerReady = true;
                     if (_isProcessingDetection)
                     {
                         _isProcessingDetection = false;
                     }
                 }
+                // You might want to log this for debugging
+                Debug.WriteLine($"Server output: {e.Data}");
             }
+        }
+
+        private void ServerProcess_ErrorDataReceived(object sender, DataReceivedEventArgs e)
+        {
+            if (!string.IsNullOrEmpty(e.Data))
+            {
+                // Log error output for debugging
+                Debug.WriteLine($"Server error: {e.Data}");
+            }
+        }
+
+        /// <summary>
+        /// Event handler for when the server process exits.
+        /// Updates the server running status to false.
+        /// </summary>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">Event arguments</param>
+        private void ServerProcess_Exited(object sender, EventArgs e)
+        {
+            _isServerRunning = false;
+            _currentProjectDir = null;
         }
 
         /// <summary>
@@ -226,6 +273,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     return false;
                 }
 
+                _isServerRunning = false;
+                _currentProjectDir = null;
+
                 _serverProcess.StandardInput.WriteLine("quit");
                 _serverProcess.StandardInput.Flush();
 
@@ -235,11 +285,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 }
 
                 _serverProcess.OutputDataReceived -= ServerProcess_OutputDataReceived;
+                _serverProcess.ErrorDataReceived -= ServerProcess_ErrorDataReceived;
                 _serverProcess.Exited -= ServerProcess_Exited;
 
                 _serverProcess.Dispose();
                 _serverProcess = null;
-                _isServerRunning = false;
 
                 return true;
             }
@@ -380,6 +430,8 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 {
                     StopServer(out _);
                 }
+
+                _currentProjectDir = null;
 
                 try
                 {

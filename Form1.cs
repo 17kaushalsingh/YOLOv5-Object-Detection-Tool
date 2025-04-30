@@ -65,6 +65,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
         private bool _detectionCompleted = false; // Flag to track if detection has been completed
         private string _outputDirectory = string.Empty; // Store the output directory for detected images
+        private System.Windows.Forms.Timer _serverReadyTimer; // Timer to check server readiness
 
         /// <summary>
         /// Initializes a new instance of the main form for YOLOv5 object detection.
@@ -86,6 +87,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
             // Initialize the detection service
             _detectionService = new YoloDetectionService(AppDomain.CurrentDomain.BaseDirectory);
+
+            // Initialize server ready timer
+            _serverReadyTimer = new System.Windows.Forms.Timer();
+            _serverReadyTimer.Interval = 100; // Check every 100ms
+            _serverReadyTimer.Tick += ServerReadyTimer_Tick;
 
             // Initialize the UI Components
             InitializeUI();
@@ -411,6 +417,26 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             }
         }
 
+        private void ServerReadyTimer_Tick(object sender, EventArgs e)
+        {
+            // First check if server is still running
+            if (!_detectionService.IsServerRunning)
+            {
+                _serverReadyTimer.Stop();
+                ResetServerButtonState();
+                MessageBox.Show("Server process stopped unexpectedly.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // Then check if server is ready
+            if (_detectionService.IsServerReady)
+            {
+                _serverReadyTimer.Stop();
+                startDetectionButton.Enabled = true;
+                startServerButton.Text = "Server Running";
+            }
+        }
+
         /// <summary>
         /// Handles the Start Server button click event.
         /// Validates model selection, starts the YOLOv5 detection server,
@@ -431,6 +457,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 this.Cursor = Cursors.WaitCursor;
                 startServerButton.Enabled = false;
                 startServerButton.Text = "Starting...";
+                startDetectionButton.Enabled = false; // Keep detection button disabled
                 Application.DoEvents();
 
                 // Start the detection server
@@ -451,9 +478,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 {
                     // Update UI state
                     startServerButton.Enabled = false;
-                    startServerButton.Text = "Server Running";
                     quitServerButton.Enabled = true;
-                    startDetectionButton.Enabled = true;
 
                     // Lock configuration controls
                     EnableConfigControls(false);
@@ -461,6 +486,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     // Set the output directory for loading images
                     string basePath = AppDomain.CurrentDomain.BaseDirectory;
                     _outputDirectory = Path.Combine(basePath, "Detections", projectNameTextBox.Text);
+
+                    // Start checking for server readiness
+                    _serverReadyTimer.Start();
                 }
                 else
                 {
@@ -504,6 +532,8 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 this.Cursor = Cursors.WaitCursor;
                 quitServerButton.Enabled = false;
                 quitServerButton.Text = "Stopping...";
+                startDetectionButton.Enabled = false; // Disable detection button
+                _serverReadyTimer.Stop(); // Stop checking for server readiness
                 Application.DoEvents();
 
                 // Stop the detection server
@@ -517,7 +547,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                     startServerButton.Text = "Start Server";
                     quitServerButton.Enabled = false;
                     quitServerButton.Text = "Stop Server";
-                    startDetectionButton.Enabled = false;
 
                     // Unlock configuration controls
                     EnableConfigControls(true);
