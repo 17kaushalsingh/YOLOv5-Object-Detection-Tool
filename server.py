@@ -11,7 +11,7 @@ Key features:
 - Interactive command-line interface
 - Single image or batch folder processing
 - Consolidated CSV output with detection results
-- Support for GPU acceleration if available
+- Automatic GPU usage if available
 - Proper resource cleanup when exiting
 """
 
@@ -37,7 +37,6 @@ class YOLOv5Inference:
     Attributes:
         model_path (str): Path to the YOLOv5 model weights (.pt file)
         labels_path (str): Path to the YAML file containing class labels
-        enable_gpu (bool): Whether to use GPU for inference if available
         input_shape (list): Model input shape as [batch_size, channels, height, width]
         conf_thresh (float): Confidence threshold for detections (0-1)
         iou_thresh (float): IoU threshold for non-maximum suppression (0-1)
@@ -47,17 +46,16 @@ class YOLOv5Inference:
         all_results (list): List to store pandas DataFrames of detection results
         class_labels (list): List of class names from the labels file
         model: The loaded YOLOv5 model
-        device: PyTorch device (cuda or cpu)
+        device: PyTorch device (cuda if available, else cpu)
     """
     
-    def __init__(self, model_path, labels_path, enable_gpu=False, input_shape=[1,3,1280,1280], conf_thresh=0.25, iou_thresh=0.45, project_name=None):
+    def __init__(self, model_path, labels_path, input_shape=[1,3,1280,1280], conf_thresh=0.25, iou_thresh=0.45, project_name=None):
         """
         Initialize the inference engine with model parameters.
         
         Args:
             model_path (str): Path to the YOLOv5 model weights (.pt file)
             labels_path (str): Path to the YAML file containing class labels
-            enable_gpu (bool, optional): Whether to use GPU for inference if available. Defaults to False.
             input_shape (list, optional): Model input shape as [batch_size, channels, height, width]. Defaults to [1,3,1280,1280].
             conf_thresh (float, optional): Confidence threshold for detections (0-1). Defaults to 0.25.
             iou_thresh (float, optional): IoU threshold for non-maximum suppression (0-1). Defaults to 0.45.
@@ -66,7 +64,6 @@ class YOLOv5Inference:
         # Store configuration parameters
         self.model_path = model_path
         self.labels_path = labels_path
-        self.enable_gpu = enable_gpu
         self.input_shape = input_shape
         self.conf_thresh = conf_thresh
         self.iou_thresh = iou_thresh
@@ -100,7 +97,7 @@ class YOLOv5Inference:
         
         # Load and configure YOLOv5 model from PyTorch Hub
         self.model = torch.hub.load("yolov5", "custom", path=self.model_path, source="local", _verbose=False)    
-        self.device = torch.device("cuda" if self.enable_gpu and torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
         self.model.names = self.class_labels
 
@@ -257,14 +254,13 @@ class YOLOv5Server:
         running (bool): Flag indicating whether the server is running
     """
     
-    def __init__(self, model_path, labels_path, enable_gpu=False, input_shape=[1,3,1280,1280], conf_thresh=0.25, iou_thresh=0.45, project_name=None):
+    def __init__(self, model_path, labels_path, input_shape=[1,3,1280,1280], conf_thresh=0.25, iou_thresh=0.45, project_name=None):
         """
         Initialize the YOLOv5 inference server.
         
         Args:
             model_path (str): Path to the YOLOv5 model weights (.pt file)
             labels_path (str): Path to the YAML file containing class labels
-            enable_gpu (bool, optional): Whether to use GPU for inference if available. Defaults to False.
             input_shape (list, optional): Model input shape as [batch_size, channels, height, width]. Defaults to [1,3,1280,1280].
             conf_thresh (float, optional): Confidence threshold for detections (0-1). Defaults to 0.25.
             iou_thresh (float, optional): IoU threshold for non-maximum suppression (0-1). Defaults to 0.45.
@@ -274,7 +270,6 @@ class YOLOv5Server:
         self.inferencer = YOLOv5Inference(
             model_path=model_path,
             labels_path=labels_path,
-            enable_gpu=enable_gpu,
             input_shape=input_shape,
             conf_thresh=conf_thresh,
             iou_thresh=iou_thresh,
@@ -419,7 +414,6 @@ def main():
     # Model and configuration arguments
     parser.add_argument('--model', required=True, type=str, help='Path to YOLOv5 weights file (.pt file)')
     parser.add_argument('--labels', required=True, type=str, help='Path to YAML file containing class labels')
-    parser.add_argument('--enable_gpu', action='store_true', help='Enable GPU/CUDA inferences if device has NVIDIA GPU support (default: False)')
     parser.add_argument('--input_shape', type=str, default='1,3,1280,1280', help='Input shape as comma-separated values (default: 1,3,1280,1280)')
     parser.add_argument('--conf_thresh', type=float, default=0.25, help='Confidence threshold (default: 0.25)')
     parser.add_argument('--iou_thresh', type=float, default=0.45, help='IOU threshold (default: 0.45)')
@@ -432,7 +426,6 @@ def main():
         server = YOLOv5Server(
             model_path=args.model,
             labels_path=args.labels,
-            enable_gpu=args.enable_gpu,
             input_shape=tuple(map(int, args.input_shape.split(','))),
             conf_thresh=args.conf_thresh,
             iou_thresh=args.iou_thresh,

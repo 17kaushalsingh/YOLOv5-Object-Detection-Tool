@@ -40,7 +40,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
 
         /// <summary>
         /// Initializes detection configuration controls within the specified parent group.
-        /// Creates and configures labels, comboboxes, buttons, and checkboxes for configuring
+        /// Creates and configures labels, comboboxes, and buttons for configuring
         /// the YOLO detection process, including model selection and input sources.
         /// </summary>
         /// <param name="parentGroup">The parent GroupBox where controls will be added</param>
@@ -51,10 +51,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         /// <param name="selectLabelsFileComboBox">Reference to the labels file selection combobox</param>
         /// <param name="selectImageButton">Reference to the image selection button</param>
         /// <param name="selectFolderButton">Reference to the folder selection button</param>
-        /// <param name="enableGpuCheckBox">Reference to the GPU enable checkbox</param>
         /// <param name="selectImageButtonClickHandler">Event handler for image selection button</param>
         /// <param name="selectFolderButtonClickHandler">Event handler for folder selection button</param>
-        public static void InitializeDetectionConfigControls(GroupBox parentGroup, Font regularFont, ref Label selectWeightsFileLabel, ref Label selectLabelsFileLabel, ref ComboBox selectWeightsFileComboBox, ref ComboBox selectLabelsFileComboBox, ref Button selectImageButton, ref Button selectFolderButton, ref CheckBox enableGpuCheckBox, EventHandler selectImageButtonClickHandler, EventHandler selectFolderButtonClickHandler)
+        public static void InitializeDetectionConfigControls(GroupBox parentGroup, Font regularFont, ref Label selectWeightsFileLabel, ref Label selectLabelsFileLabel, ref ComboBox selectWeightsFileComboBox, ref ComboBox selectLabelsFileComboBox, ref Button selectImageButton, ref Button selectFolderButton, EventHandler selectImageButtonClickHandler, EventHandler selectFolderButtonClickHandler)
         {
             // Weights File Label
             selectWeightsFileLabel = new Label
@@ -129,17 +128,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             };
             selectFolderButton.Click += selectFolderButtonClickHandler;
             parentGroup.Controls.Add(selectFolderButton);
-
-            // Enable GPU CheckBox - Toggle GPU acceleration
-            enableGpuCheckBox = new CheckBox
-            {
-                Text = "Enable GPU",
-                Location = new Point(20, 130),
-                Size = new Size(150, 20),
-                Checked = true, // Default to GPU enabled
-                Font = regularFont
-            };
-            parentGroup.Controls.Add(enableGpuCheckBox);
         }
 
         /// <summary>
@@ -278,7 +266,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             startServerButton = new Button
             {
                 Text = "Start Server",
-                Location = new Point(20, 390),
+                Location = new Point(20, 350),
                 Size = new Size(190, 40),
                 Font = new Font("Arial", 14, FontStyle.Bold),
                 BackColor = Color.LightGreen,
@@ -293,7 +281,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             quitServerButton = new Button
             {
                 Text = "Stop Server",
-                Location = new Point(230, 390),
+                Location = new Point(230, 350),
                 Size = new Size(190, 40),
                 Font = new Font("Arial", 14, FontStyle.Bold),
                 BackColor = Color.LightCoral,
@@ -309,7 +297,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             startDetectionButton = new Button
             {
                 Text = "► Start Detection",
-                Location = new Point(20, 450),
+                Location = new Point(20, 410),
                 Size = new Size(400, 40),
                 Font = new Font("Arial", 18, FontStyle.Bold),
                 BackColor = Color.LightBlue,

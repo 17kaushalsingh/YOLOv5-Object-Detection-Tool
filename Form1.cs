@@ -30,10 +30,9 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
     /// </summary>
     public partial class Form1 : Form
     {
-        // 1. Detection Configuration Items: Weights and Labels Files, Source Image Selection, Hardware Acceleration Settings
+        // 1. Detection Configuration Items: Weights and Labels Files, Source Image Selection
         Label selectWeightsFileLabel, selectLabelsFileLabel;
         ComboBox selectWeightsFileComboBox, selectLabelsFileComboBox;
-        CheckBox enableGpuCheckBox;
         Button selectImageButton, selectFolderButton;
         GroupBox detectionConfigGroupBox;
 
@@ -109,11 +108,11 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         private void InitializeUI()
         {
             // Create detection configuration group
-            detectionConfigGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Configuration", new Point(20, 20), new Size(400, 190), boldFont);
-            YoloApplicationUI.InitializeDetectionConfigControls(detectionConfigGroupBox, regularFont, ref selectWeightsFileLabel, ref selectLabelsFileLabel, ref selectWeightsFileComboBox, ref selectLabelsFileComboBox, ref selectImageButton, ref selectFolderButton, ref enableGpuCheckBox, selectImageButton_Click, selectFolderButton_Click);
+            detectionConfigGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Configuration", new Point(20, 20), new Size(400, 150), boldFont);
+            YoloApplicationUI.InitializeDetectionConfigControls(detectionConfigGroupBox, regularFont, ref selectWeightsFileLabel, ref selectLabelsFileLabel, ref selectWeightsFileComboBox, ref selectLabelsFileComboBox, ref selectImageButton, ref selectFolderButton, selectImageButton_Click, selectFolderButton_Click);
 
             // Create detection parameters group
-            detectionParametersGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Parameters", new Point(20, 220), new Size(400, 150), boldFont);
+            detectionParametersGroupBox = YoloApplicationUI.CreateGroupBox(this, "Detection Parameters", new Point(20, 180), new Size(400, 150), boldFont);
             YoloApplicationUI.InitializeDetectionParametersControls(detectionParametersGroupBox, regularFont, ref imageResolutionLabel, ref confidenceThresholdLabel, ref iouThresholdLabel, ref projectNameLabel, ref imageResolutionHorizontalTextBox, ref imageResolutionVerticalTextBox, ref confidenceThresholdTextBox, ref iouThresholdTextBox, ref projectNameTextBox);
 
             // Create server control buttons
@@ -465,7 +464,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
                 bool success = _detectionService.StartServer(
                     selectWeightsFileComboBox.SelectedItem.ToString(),
                     selectLabelsFileComboBox.SelectedItem.ToString(),
-                    enableGpuCheckBox.Checked,
                     imageResolutionHorizontalTextBox.Text,
                     imageResolutionVerticalTextBox.Text,
                     confidenceThresholdTextBox.Text,
@@ -585,7 +583,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
             confidenceThresholdTextBox.Enabled = enabled;
             iouThresholdTextBox.Enabled = enabled;
             projectNameTextBox.Enabled = enabled;
-            enableGpuCheckBox.Enabled = enabled;
         }
 
         /// <summary>

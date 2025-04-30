@@ -131,7 +131,6 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         /// </summary>
         /// <param name="modelFile">Name of the model weights file</param>
         /// <param name="yamlFile">Name of the YAML file containing class labels</param>
-        /// <param name="enableGpu">Whether to enable GPU acceleration</param>
         /// <param name="horizontalResolution">Horizontal resolution for input images</param>
         /// <param name="verticalResolution">Vertical resolution for input images</param>
         /// <param name="confidenceThreshold">Confidence threshold for detections (0-1)</param>
@@ -139,7 +138,7 @@ namespace Test_Software_AI_Automatic_Cleaning_Machine
         /// <param name="projectName">Name for the output directory</param>
         /// <param name="errorMessage">Output parameter for error messages if server fails to start</param>
         /// <returns>True if server started successfully, False otherwise with error in errorMessage</returns>
-        public bool StartServer(string modelFile, string yamlFile, bool enableGpu, string horizontalResolution, string verticalResolution, string confidenceThreshold, string iouThreshold, string projectName, out string errorMessage)
+        public bool StartServer(string modelFile, string yamlFile, string horizontalResolution, string verticalResolution, string confidenceThreshold, string iouThreshold, string projectName, out string errorMessage)
         {
             errorMessage = string.Empty;
             try
