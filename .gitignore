@@ -145,3 +145,6 @@ node_modules/
 
 # Conda environment
 yolov5_env/
+
+# Application files
+YOLOv5-Object-Detection-Tool-v*/

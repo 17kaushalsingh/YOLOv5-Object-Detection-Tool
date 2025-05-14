@@ -28,6 +28,7 @@
 6. ~~Enable FP16 automatically~~
 7. ~~Documentation for Github~~
 8. ~~Remove temporary folder (for image handling) related code~~
-8. ~~Minimize the python environment size as much as possible~~
+8. Minimize the python environment size as much as possible
 9. Create a one click installer to run the application
 10. Create a docker image to run the application in containerized manner
+11. Test on another GPU system to check if the application is working
